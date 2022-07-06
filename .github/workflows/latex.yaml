@@ -1,0 +1,26 @@
+name: LaTeX
+on:
+  - push
+  - workflow_dispatch
+jobs:
+  Compiling:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "🤖 Beep Boop I'm going to compile this amazing CV"
+  
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v2
+        with:
+          root_file: resume.tex
+
+      - run: echo "🦾 Done!"
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: PDF
+          path: resume.pdf
+
+      - run: echo "📦 Artifact uploaded!"
