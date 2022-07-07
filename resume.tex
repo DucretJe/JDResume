@@ -1,14 +1,217 @@
-\documentclass{article}
-\usepackage[utf8]{inputenc}
+\documentclass[%singlesided,
+               doublesided,
+               paper=a4,
+               fontsize=10pt
+              ]{my-resume}
 
-\title{test}
-\author{Jérôme Ducret}
-\date{July 2022}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% set geometry
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\setlength\highlightwidth{8cm}
+\setlength\headerheight{4cm}            % note that margintop gets added to this value, i.e. the header bar is 5cm
+\setlength\marginleft{1cm}
+\setlength\marginright{\marginleft}      % needs to be 1.5 times to be actually equal. why?
+\setlength\margintop{1cm}
+\setlength\marginbottom{1cm}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FONTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage{fontspec}
+\setmainfont{Carlito}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% COLORS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\colorlet{highlightbarcolor}{lightgray}
+\colorlet{headerbarcolor}{mordantred19}
+\colorlet{headerfontcolor}{white}
+\colorlet{accent}{awesome-red}
+\colorlet{heading}{black}
+\colorlet{emphasis}{black}
+\colorlet{body}{black}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% set document
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 \begin{document}
 
-\maketitle
+\name{Jérôme DUCRET}
+\tagline{SRE at Evooq with experience in Orchestration, GitOps, and Configuration Manager.\\ Worked on several projects to automate the deployment of an application and to create\\ an environment for developers to deploy and manage their app lifecycle autonomously.\\ Applying for a new SRE role to manage and scale a large scale global product.}
 
-\section{Introduction}
+\photo[round]{picture.jpg}{\dimexpr \headerheight-\margintop{}}   % make photo exactly match the header with margintop/marginright/marginbottom as margin {\dimexpr \headerheight-\marginbottom}
+
+\makeheader
+
+\highlightbar{
+
+    \section{Contact}
+
+    \email{jducret@pm.me}
+    \phone{+41 77 475 61 18}
+    \location{Chemin des Orchez 4a, 1066 Epalinges}
+    \vspace{0.5em}
+    \homepage{ducretje.github.io}{https://ducretje.github.io/}
+    \github{@ducretje}{https://github.com/ducretje}
+    \linkedin{Jérôme DUCRET}{https://bit.ly/3AhwgHD}
+    
+    \section{Skills}
+    
+    \skillsection{Programming}
+    \skill{Python}{3}
+    \skill{Bash}{4}
+    \skill{LaTeX}{2}
+    
+    \vspace{0.5em}
+    \skillsection{Operating Systems}
+    \skill{Linux}{5}
+    \skill{MacOS}{5}
+    \skill{Windows}{4}
+    
+    \vspace{0.5em}
+    \skillsection{Software \& Tools}
+    \skill{Ansible}{5}
+    \skill{ArgoCD}{4}
+    \skill{Terraform}{4}
+    \skill{Kubernetes}{3}
+    \skill{Docker}{4}
+    \skill{Notion}{4}
+    
+    \vspace{0.5em}
+    \skillsection{Hobbies}
+    Photography,
+    Trips,
+    Video Games
+    
+    \vspace{0.5em}
+    \skillsection{Languages}
+    \skill{French}{5}
+    \skill{English}{4}
+    \bigskip
+
+
+}
+\mainbar{
+    \section[\faGears]{Work history}
+    \job{09/2020 - Current}
+        {Evooq SA Lausanne - Switzerland}
+        {Site Reliability Engineer}
+        
+    \job{01/2019 - 09/2020}
+        {CIC Lyon - France}
+        {Credit Analyst}
+        
+    \job{10/2011 - 01/2019}
+        {CIC Villeurbanne - France}
+        {Financial Counsellor - SME}
+    
+    \section[\faMortarBoard]{Education}
+    \job{2018 - 2020 - Degree}
+        {Openclassroom}
+        {Admin. Infrastructure and Cloud}
+        
+    \job{2010 - 2011 - Master Degree}
+        {Université Jean Moulin, Lyon - France}
+        {Banking and Finance Law}
+
+    \section{Achievements, honours and awards}
+    \achievement{Have successfully made a career change from finance to IT}
+    \achievement{My second achievement}
+
+    \section{General Skills}
+    \smallskip % additional skip because tag outlines use up space
+    \tag{Virtualisation}
+    \tag{Orchestration}
+    \tag{GCP}
+    \tag{Kubernetes}
+    \tag{GitOps}
+    \tag{Git}
+    \tag{Infrastructure As Code}
+    \tag{GitHub Action}
+    
+    \section{Wheel Chart}
+    % This is taken from AltaCV
+    % see https://github.com/liantze/AltaCV for details
+    \wheelchart{1.5cm}{0.5cm}{% outer and inner diameter
+        6/8em/accent!20/Sleep,          % comma-separated list of
+        8/8em/accent!40/Daytime job,    % fraction of 24 / line length / color / label
+        2/8em/accent!80/Training,          % here, the color is shades of the accent color
+        3/8em/accent!60/Recovering from fighting criminals,
+        5/8em/accent/Being Batman
+    }
+}
+\makebody
+\clearpage
+
+
+\pagestyle{highlightmain}
+
+% The highlightbar needs to be filled to display mainbar contents correctly in singlesised mode
+% For an empty highlightbar, fill with empty space
+\highlightbar{\hfill}
+\mainbar{
+
+    \section{Another section}
+    
+    This page uses the page style \texttt{highlightmain} which shows the highlight bar (gray) and the main part (white background) but omits the header. 
+    The default page style is \texttt{headerhighlightmain} with all three elements.
+    If you don't want header, nor highlight bar, use page style \texttt{\textbackslash pagestyle\{empty\}}.
+    \medskip
+    Neither main, nor highlight bar must be filled to make this template work.
+    It is possible to use a page style with the highlight bar but leave it empty by setting an empty highlightbar \texttt{\textbackslash highlightbar\{\}}.
+
+    \vspace{0.5em}
+    \subsection{Subsection 1}
+    Demonstrate subsections.
+    
+    \subsection{Subsection 2}
+    Subsection are also bold face but a smaller font then section. They also omit the rule.
+    
+
+}
+\makebody
+
+
+\clearpage
+\pagestyle{empty}
+
+\section{Publications}
+\pubforcefullwidth
+
+Demonstrate what an \texttt{\textbackslash pagestyle\{empty\}} page looks like.
+Also show off the macros for publications that uses small icons for authors, date, journal and links.
+
+Achieving a good looking spacing can be tricky. For empty pagestyles where the full width is available use \texttt{\textbackslash pubforcefullwidth} to force the publoication list to take up all the available space.
+The (relative) lengths reserved for date, journal and links can be set with the parameters \texttt{\textbackslash pubdatelength}, \texttt{\textbackslash pubjournallength} and \texttt{\textbackslash publinklength} as in \texttt{\textbackslash setlength\{\textbackslash pubdatelength\}\{0.15 \textbackslash linewidth\}}.
+\bigskip
+
+\publication
+	{The turbulent gas structure in the centers of NGC~253 and the Milky Way} % Title
+	{\textbf{N. Krieger}, A. Bolatto, E. Koch, A. Leroy, E. Rosolowsky, F. Walter, A. Wei\ss, D. Eden, R. Levy, D. Meier, E. Mills, T. Moore, J. Ott, Y. Su, S. Veilleux} % Authors
+	{2020} % Year
+	{The Astrophysical Journal Vol. 899, Issue 2, id.158} % Journal
+	{\ADS{https://ui.adsabs.harvard.edu/abs/2020ApJ...899..158K}, \arXiv{https://arxiv.org/abs/2008.02518}} % ADS & arxiv links
+
+\publication
+	{The molecular ISM in the Super Star Clusters of the starburst NGC253} % Title
+	{\textbf{N. Krieger}, A. Bolatto, A. Leroy, R. Levy, E. Mills, D. Meier, S. Veilleux, F. Walter, A. Wei\ss} % Authors
+	{2020} % Year
+	{The Astrophysical Journal Vol.897, Issue 2, id.176} % Journal
+	{\ADS{https://ui.adsabs.harvard.edu/abs/2020ApJ...897..176K}, \arXiv{https://arxiv.org/abs/2006.08262}} % ADS & arxiv links
+
+\publication
+	{The Molecular Outflow in NGC\,253 at a Resolution of Two Parsecs} % Title
+	{\textbf{N. Krieger}, A. Bolatto, F. Walter, A. Leroy, L. Zschaechner, D. Meier, J. Ott, A. Wei\ss, E. Mills, S. Veilleux, M. Gorski} % Authors
+	{2019} % Year
+	{The Astrophysical Journal Vol.881, Issue 1, article id. 43, 20 pp} % Journal
+	{\ADS{https://ui.adsabs.harvard.edu/abs/2019ApJ...881...43K}, \arXiv{https://arxiv.org/abs/1907.00731}} % ADS & arxiv links
 
 \end{document}

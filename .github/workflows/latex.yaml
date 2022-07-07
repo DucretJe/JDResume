@@ -15,6 +15,10 @@ jobs:
         uses: xu-cheng/latex-action@v2
         with:
           root_file: resume.tex
+          latexmk_use_xelatex: true
+          pre_compile: "wget https://github.com/DucretJe/JDResume/raw/CV-from-Template/photo.jpg -O picture.jpg"
+        env:
+          TEXINPUTS: ".:"
 
       - run: echo "🦾 Done!"
 
