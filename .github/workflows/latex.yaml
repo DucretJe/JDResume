@@ -1,7 +1,10 @@
 name: LaTeX
 on:
-  - push
-  - workflow_dispatch
+  push:
+    paths:
+      - 'LaTeX'   
+  workflow_dispatch:
+
 jobs:
   Compiling:
     runs-on: ubuntu-latest
@@ -14,17 +17,17 @@ jobs:
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v2
         with:
-          root_file: resume.tex
+          root_file: ./LaTeX/resume.tex
           latexmk_use_xelatex: true
           pre_compile: "wget https://github.com/DucretJe/JDResume/raw/CV-from-Template/photo.jpg -O picture.jpg"
         env:
-          TEXINPUTS: ".:"
+          TEXINPUTS: "./LaTeX:"
 
       - run: echo "🦾 Done!"
 
       - uses: actions/upload-artifact@v3
         with:
-          name: PDF
+          name: resume.pdf
           path: resume.pdf
 
       - run: echo "📦 Artifact uploaded!"

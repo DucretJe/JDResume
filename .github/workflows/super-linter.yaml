@@ -1,0 +1,31 @@
+name: Quality Check
+on:
+  - push
+  - workflow_dispatch
+  - pull_request
+
+jobs:
+  Compiling:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "🤖 Beep Boop I'm going to check your code"
+  
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Lint Code Base
+        uses: github/super-linter/slim@v4
+        env:
+          VALIDATE_ALL_CODEBASE: true
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: Quality reports
+          path: '${{ github.workspace }}/super-linter.log'
+
+      - run: echo "📦 Artifact uploaded!"
