@@ -1,8 +1,10 @@
+---
 name: LaTeX
 on:
   push:
     paths:
-      - 'LaTeX'   
+      - 'LaTeX/**' 
+      - '.github/workflows/latex.yaml'
   workflow_dispatch:
 
 jobs:
@@ -19,7 +21,7 @@ jobs:
         with:
           root_file: ./LaTeX/resume.tex
           latexmk_use_xelatex: true
-          pre_compile: "wget https://github.com/DucretJe/JDResume/raw/CV-from-Template/photo.jpg -O picture.jpg"
+          pre_compile: "wget https://github.com/DucretJe/JDResume/blob/main/LaTeX/photo.jpg -O picture.jpg"
         env:
           TEXINPUTS: "./LaTeX:"
 
@@ -27,7 +29,43 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: resume.pdf
+          name: resume.pdf.zip
           path: resume.pdf
 
       - run: echo "📦 Artifact uploaded!"
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - name: Create tag
+        id: tag
+        run: echo "::set-output name=tag::$(git rev-parse --short HEAD)"
+
+      - name: Pushing a release commit tag
+        uses: ncipollo/release-action@v1
+        if: github.ref == 'refs/heads/main'
+        with:
+          allowUpdates: false
+          artifacts: "resume.pdf"
+          artifactContentType: "application/zip"
+          body: "${{ steps.date.outputs.date }} version of Jerome Ducret resume."
+          draft: false
+          name: "resume.pdf"
+          tag: ${{ steps.tag.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pushing a release latest tag
+        uses: ncipollo/release-action@v1
+        if: github.ref == 'refs/heads/main'
+        with:
+          allowUpdates: true
+          artifacts: "resume.pdf"
+          artifactContentType: "application/zip"
+          body: "${{ steps.date.outputs.date }} version of Jerome Ducret resume."
+          draft: false
+          name: "resume.pdf"
+          tag: "latest"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: echo "📦 New release pushed!"
