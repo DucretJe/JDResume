@@ -21,7 +21,7 @@ jobs:
         with:
           root_file: ./LaTeX/resume.tex
           latexmk_use_xelatex: true
-          pre_compile: "ls && wget https://github.com/DucretJe/JDResume/blob/main/LaTeX/photo.jpg -O picture.jpg"
+          pre_compile: "wget https://media.githubusercontent.com/media/DucretJe/JDResume/main/LaTeX/photo.jpg -O picture.jpg"
         env:
           TEXINPUTS: "./LaTeX:"
 
