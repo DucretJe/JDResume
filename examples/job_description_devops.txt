@@ -1,0 +1,40 @@
+DevOps Engineer - Platform Team
+
+Join our platform engineering team to help build and scale our developer platform. We're looking for a talented DevOps Engineer who is passionate about automation and developer experience.
+
+About the Role:
+We need someone who can bridge the gap between development and operations, creating seamless workflows for our engineering teams. You'll work on automation, CI/CD, and platform tooling.
+
+What You'll Do:
+- Build and maintain CI/CD pipelines
+- Automate infrastructure provisioning and configuration
+- Implement monitoring and alerting systems
+- Support development teams with platform tools
+- Improve deployment processes and developer workflows
+- Write scripts and tools to automate repetitive tasks
+- Manage cloud infrastructure (AWS/GCP)
+- Ensure security and compliance in all deployments
+
+Technical Requirements:
+- Strong scripting skills (Python, Bash, or similar)
+- Experience with configuration management (Ansible, Chef, Puppet)
+- Knowledge of containerization (Docker, Kubernetes)
+- CI/CD tools experience (GitHub Actions, Jenkins, GitLab CI)
+- Cloud platform experience (AWS or GCP preferred)
+- Version control with Git
+- Linux system administration
+
+Bonus Points:
+- Experience with GitOps methodologies
+- Knowledge of observability tools (Grafana, Prometheus)
+- Infrastructure as Code experience (Terraform)
+- Experience in a SaaS environment
+- Background in software development
+
+Our Stack:
+- Cloud: GCP and AWS
+- Containers: Docker, Kubernetes
+- IaC: Terraform, Ansible
+- CI/CD: GitHub Actions
+- Monitoring: Grafana Stack
+- Languages: Python, Go, Bash

@@ -1,0 +1,38 @@
+Senior Site Reliability Engineer - Cloud Infrastructure
+
+We are seeking a highly skilled Senior Site Reliability Engineer to join our growing platform team. You will be responsible for designing, implementing, and maintaining our cloud infrastructure at scale.
+
+Key Responsibilities:
+- Design and implement scalable Kubernetes-based infrastructure
+- Develop and maintain Infrastructure as Code using Terraform and Ansible
+- Implement GitOps workflows using ArgoCD or Flux
+- Build and maintain CI/CD pipelines with GitHub Actions
+- Ensure high availability and reliability of production systems
+- Implement comprehensive monitoring and observability solutions using Grafana, Prometheus
+- Collaborate with development teams to improve application reliability
+- Participate in on-call rotation and incident response
+- Mentor junior team members
+
+Required Skills:
+- 3+ years of experience in SRE or DevOps role
+- Strong experience with Kubernetes in production environments
+- Expertise in Infrastructure as Code (Terraform, Ansible)
+- Proficiency in at least one programming language (Python, Go, or similar)
+- Experience with GitOps practices and tools (ArgoCD, Flux)
+- Strong knowledge of Linux systems administration
+- Experience with cloud providers (GCP, AWS, or Azure)
+- Experience with monitoring and observability tools (Prometheus, Grafana, Loki)
+
+Nice to Have:
+- Experience with multi-cloud environments
+- Knowledge of security best practices
+- Experience with service mesh technologies
+- Contributions to open-source projects
+- Certifications (CKA, CKAD, Terraform, or cloud certifications)
+
+What We Offer:
+- Competitive salary and benefits
+- Remote-friendly work environment
+- Learning and development budget
+- Modern tech stack and challenging projects
+- Collaborative and supportive team culture

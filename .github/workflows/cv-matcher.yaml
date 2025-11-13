@@ -1,0 +1,97 @@
+---
+name: CV Job Matcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_description:
+        description: 'Job description to match CV against (text or path to file in repo)'
+        required: true
+        type: string
+      job_description_file:
+        description: 'Optional: Path to job description file in repo (leave empty if using direct text)'
+        required: false
+        type: string
+
+jobs:
+  adapt-and-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r agent/requirements.txt
+
+      - name: Create job description file
+        run: |
+          if [ -n "${{ inputs.job_description_file }}" ]; then
+            echo "Using job description from file: ${{ inputs.job_description_file }}"
+            if [ ! -f "${{ inputs.job_description_file }}" ]; then
+              echo "Error: Job description file not found!"
+              exit 1
+            fi
+            cp "${{ inputs.job_description_file }}" /tmp/job_description.txt
+          else
+            echo "Using job description from input"
+            echo "${{ inputs.job_description }}" > /tmp/job_description.txt
+          fi
+
+      - name: Run CV Matcher Agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "🤖 Running CV Matcher Agent..."
+          python agent/cv_matcher_agent.py \
+            --cv ./LaTeX/resume.tex \
+            --job-description /tmp/job_description.txt \
+            --output ./LaTeX/resume_adapted.tex
+
+      - name: Show adaptation summary
+        run: |
+          echo "📊 CV Adaptation Summary:"
+          echo "Original CV: ./LaTeX/resume.tex"
+          echo "Adapted CV: ./LaTeX/resume_adapted.tex"
+          wc -l ./LaTeX/resume.tex ./LaTeX/resume_adapted.tex
+
+      - name: Download photo for LaTeX compilation
+        run: |
+          wget https://media.githubusercontent.com/media/DucretJe/JDResume/main/LaTeX/photo.jpg -O picture.jpg
+
+      - name: Compile adapted CV to PDF
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: ./LaTeX/resume_adapted.tex
+          latexmk_use_xelatex: true
+        env:
+          TEXINPUTS: "./LaTeX:"
+
+      - name: Rename PDF
+        run: |
+          mv resume_adapted.pdf adapted_cv_$(date +'%Y%m%d_%H%M%S').pdf
+          ls -lh adapted_cv_*.pdf
+
+      - name: Upload adapted CV PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adapted-cv-pdf
+          path: adapted_cv_*.pdf
+
+      - name: Upload adapted LaTeX source
+        uses: actions/upload-artifact@v4
+        with:
+          name: adapted-cv-latex
+          path: ./LaTeX/resume_adapted.tex
+
+      - name: Success message
+        run: |
+          echo "✅ CV adaptation complete!"
+          echo "📦 Artifacts uploaded:"
+          echo "  - adapted-cv-pdf: The compiled PDF"
+          echo "  - adapted-cv-latex: The adapted LaTeX source"
