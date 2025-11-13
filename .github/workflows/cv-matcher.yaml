@@ -20,14 +20,17 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
         with:
-          python-version: '3.11'
+          enable-cache: true
 
-      - name: Install Python dependencies
-        run: |
-          pip install -r agent/requirements.txt
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install agent dependencies
+        working-directory: agent
+        run: uv sync
 
       - name: Create job description file
         run: |
@@ -44,14 +47,15 @@ jobs:
           fi
 
       - name: Run CV Matcher Agent
+        working-directory: agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "🤖 Running CV Matcher Agent..."
-          python agent/cv_matcher_agent.py \
-            --cv ./LaTeX/resume.tex \
+          uv run cv-matcher \
+            --cv ../LaTeX/resume.tex \
             --job-description /tmp/job_description.txt \
-            --output ./LaTeX/resume_adapted.tex
+            --output ../LaTeX/resume_adapted.tex
 
       - name: Show adaptation summary
         run: |

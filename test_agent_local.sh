@@ -14,15 +14,16 @@ if [ -z "$GEMINI_API_KEY" ]; then
     exit 1
 fi
 
-# Check if Python is available
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Error: python3 is not installed"
+# Check if uv is available
+if ! command -v uv &> /dev/null; then
+    echo "❌ Error: uv is not installed"
+    echo "Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"
     exit 1
 fi
 
 # Install dependencies if needed
-echo "📦 Installing dependencies..."
-pip install -q -r agent/requirements.txt
+echo "📦 Installing dependencies with uv..."
+cd agent && uv sync && cd ..
 
 # Use the example job description
 JOB_DESC_FILE="examples/job_description_sre.txt"
@@ -37,10 +38,11 @@ echo ""
 
 # Run the agent
 echo "🤖 Running CV Matcher Agent..."
-python3 agent/cv_matcher_agent.py \
-    --cv ./LaTeX/resume.tex \
-    --job-description "$JOB_DESC_FILE" \
-    --output ./LaTeX/resume_adapted.tex
+cd agent && uv run cv-matcher \
+    --cv ../LaTeX/resume.tex \
+    --job-description "../$JOB_DESC_FILE" \
+    --output ../LaTeX/resume_adapted.tex
+cd ..
 
 echo ""
 echo "✅ Agent execution complete!"

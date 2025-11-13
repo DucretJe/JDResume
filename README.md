@@ -20,6 +20,8 @@ This repository now includes an AI agent that adapts your CV to match specific j
 - ✅ **Intelligent reformulation**: Reorganizes and highlights relevant content
 - ✅ **LaTeX preservation**: Maintains perfect formatting
 - ✅ **Automated workflow**: Runs in GitHub Actions and produces PDF artifacts
+- ✅ **Modular architecture**: Clean, maintainable code split into logical modules
+- ✅ **Modern tooling**: Uses `uv` for blazing-fast dependency management
 
 See [agent/README.md](agent/README.md) for detailed documentation.
 
@@ -50,6 +52,9 @@ See [agent/README.md](agent/README.md) for detailed documentation.
 You can test the agent locally before running it in GitHub Actions:
 
 ```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Set your Gemini API key
 export GEMINI_API_KEY='your-api-key-here'
 
@@ -58,6 +63,14 @@ export GEMINI_API_KEY='your-api-key-here'
 ```
 
 This will adapt your CV using the example job description in `examples/job_description_sre.txt`.
+
+Or run the agent directly:
+
+```bash
+cd agent
+uv sync  # Install dependencies
+uv run cv-matcher --job-description ../examples/job_description_sre.txt
+```
 
 ### Change this resume
 In order to be able to merge a Pull Request on this repository, the PR has to:
@@ -74,15 +87,21 @@ JDResume/
 │   ├── my-resume.cls        # Custom LaTeX class
 │   └── photo.jpg            # Profile photo
 ├── agent/                    # AI CV Matcher Agent
-│   ├── cv_matcher_agent.py  # Main agent code
-│   ├── requirements.txt     # Python dependencies
+│   ├── pyproject.toml       # uv configuration & dependencies
+│   ├── cv_matcher/          # Main package
+│   │   ├── __init__.py
+│   │   ├── config.py        # Configuration & prompts
+│   │   ├── latex_parser.py  # LaTeX extraction
+│   │   ├── gemini_adapter.py # Gemini API integration
+│   │   ├── latex_writer.py  # LaTeX writing
+│   │   └── cli.py           # Command-line interface
 │   └── README.md            # Agent documentation
 ├── examples/                 # Example job descriptions
 │   ├── job_description_sre.txt
 │   └── job_description_devops.txt
 ├── .github/workflows/        # GitHub Actions workflows
 │   ├── latex.yaml           # Standard CV compilation
-│   ├── cv-matcher.yaml      # AI CV adaptation workflow
+│   ├── cv-matcher.yaml      # AI CV adaptation workflow (uses uv)
 │   └── super-linter.yaml    # Code linting
 └── test_agent_local.sh      # Local testing script
 ```
@@ -97,4 +116,5 @@ JDResume/
 * [LaTeX](https://www.latex-project.org/)
 * [Renovate](https://docs.renovatebot.com/)
 * [Google Gemini API](https://ai.google.dev/)
+* [uv - Python Package Manager](https://docs.astral.sh/uv/)
 * [CV Matcher Agent Documentation](agent/README.md)

@@ -8,11 +8,40 @@ Cet agent utilise l'API Gemini pour adapter automatiquement votre CV LaTeX à un
 - ✅ **Reformulation intelligente** : Réorganise et reformule le contenu pour mettre en avant les compétences pertinentes
 - ✅ **Préservation du format LaTeX** : Maintient l'intégrité du formatage LaTeX
 - ✅ **Analyse contextuelle** : Utilise Gemini pour comprendre la job description et adapter le CV en conséquence
+- ✅ **Architecture modulaire** : Code organisé en modules logiques et maintenables
+- ✅ **Gestion moderne des dépendances** : Utilise `uv` pour une installation ultra-rapide
+
+## Architecture
+
+Le projet est structuré en modules logiques :
+
+```
+agent/
+├── pyproject.toml              # Configuration uv et dépendances
+└── cv_matcher/                 # Package principal
+    ├── __init__.py
+    ├── config.py               # Configuration et constantes
+    ├── latex_parser.py         # Extraction des sections LaTeX
+    ├── gemini_adapter.py       # Adaptation avec Gemini API
+    ├── latex_writer.py         # Application des modifications
+    └── cli.py                  # Interface en ligne de commande
+```
 
 ## Installation
 
+Ce projet utilise [uv](https://docs.astral.sh/uv/) pour la gestion des dépendances Python.
+
+### Installer uv
+
 ```bash
-pip install -r requirements.txt
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### Installer les dépendances
+
+```bash
+cd agent
+uv sync
 ```
 
 ## Configuration
@@ -30,22 +59,25 @@ export GEMINI_API_KEY="votre-clé-api-ici"
 ### Utilisation basique
 
 ```bash
-python cv_matcher_agent.py --job-description "description du poste ici"
+cd agent
+uv run cv-matcher --job-description "description du poste ici"
 ```
 
 ### Avec un fichier de job description
 
 ```bash
-python cv_matcher_agent.py --job-description path/to/job_description.txt
+cd agent
+uv run cv-matcher --job-description ../examples/job_description_sre.txt
 ```
 
 ### Options avancées
 
 ```bash
-python cv_matcher_agent.py \
-  --cv ./LaTeX/resume.tex \
-  --job-description job_description.txt \
-  --output ./LaTeX/resume_adapted.tex \
+cd agent
+uv run cv-matcher \
+  --cv ../LaTeX/resume.tex \
+  --job-description ../examples/job_description_devops.txt \
+  --output ../LaTeX/resume_adapted.tex \
   --api-key "votre-clé-api" \
   --model gemini-1.5-pro
 ```
@@ -64,68 +96,29 @@ L'agent est conçu pour être exécuté dans un workflow GitHub Actions. Voir `.
 
 Le workflow :
 1. Prend une job description en input
-2. Exécute l'agent pour adapter le CV
-3. Compile le CV LaTeX adapté en PDF
-4. Upload le PDF comme artefact
+2. Installe uv et les dépendances (avec cache pour performance)
+3. Exécute l'agent pour adapter le CV
+4. Compile le CV LaTeX adapté en PDF
+5. Upload le PDF comme artefact
 
-## Exemple de workflow
-
-```yaml
-name: CV Job Matcher
-
-on:
-  workflow_dispatch:
-    inputs:
-      job_description:
-        description: 'Job description to match CV against'
-        required: true
-        type: string
-
-jobs:
-  adapt-cv:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r agent/requirements.txt
-
-      - name: Run CV Matcher Agent
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          python agent/cv_matcher_agent.py \
-            --job-description "${{ inputs.job_description }}"
-
-      - name: Compile adapted CV to PDF
-        uses: xu-cheng/latex-action@v3
-        with:
-          root_file: ./LaTeX/resume_adapted.tex
-          latexmk_use_xelatex: true
-        env:
-          TEXINPUTS: "./LaTeX:"
-
-      - name: Upload PDF artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: adapted-cv-pdf
-          path: resume_adapted.pdf
-```
+Le workflow utilise `uv` pour une installation ultra-rapide des dépendances et une gestion efficace du cache.
 
 ## Comment ça marche
 
 L'agent suit ces étapes :
 
-1. **Lecture du CV** : Lit le fichier LaTeX du CV original
-2. **Extraction des sections** : Identifie les sections modifiables (tagline, expériences, compétences, etc.)
-3. **Analyse avec Gemini** : Envoie le CV et la job description à Gemini avec des instructions strictes pour rester grounded
-4. **Application des adaptations** : Remplace les sections du CV avec les versions adaptées
-5. **Sauvegarde** : Écrit le nouveau CV LaTeX adapté
+1. **Lecture du CV** (`LaTeXParser`) : Lit le fichier LaTeX du CV original
+2. **Extraction des sections** (`LaTeXParser`) : Identifie les sections modifiables (tagline, expériences, compétences, etc.)
+3. **Analyse avec Gemini** (`GeminiAdapter`) : Envoie le CV et la job description à Gemini avec des instructions strictes pour rester grounded
+4. **Application des adaptations** (`LaTeXWriter`) : Remplace les sections du CV avec les versions adaptées
+5. **Sauvegarde** (`LaTeXWriter`) : Écrit le nouveau CV LaTeX adapté
+
+Chaque module a une responsabilité claire :
+- **`config.py`** : Configuration et templates de prompts
+- **`latex_parser.py`** : Parsing et extraction du contenu LaTeX
+- **`gemini_adapter.py`** : Communication avec l'API Gemini
+- **`latex_writer.py`** : Écriture des modifications dans le LaTeX
+- **`cli.py`** : Interface en ligne de commande
 
 ## Règles strictes de l'agent
 
@@ -148,6 +141,41 @@ Si l'agent a du mal à parser la réponse de Gemini, vérifiez que vous utilisez
 
 ### Le CV adapté ne compile pas
 L'agent préserve le format LaTeX, mais si la compilation échoue, vérifiez que le CV original compile correctement d'abord.
+
+### uv command not found
+Installez uv avec : `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+## Développement
+
+### Structure du code
+
+Le code est organisé en modules avec séparation des responsabilités :
+
+- Parsing LaTeX séparé de la logique d'adaptation
+- Adapter Gemini isolé pour faciliter les tests
+- Configuration centralisée dans un module dédié
+- CLI simple qui orchestre les modules
+
+### Ajouter de nouvelles fonctionnalités
+
+1. **Nouvelles sections LaTeX** : Modifiez `latex_parser.py` pour extraire de nouvelles sections
+2. **Nouveaux modèles** : Changez le modèle dans `config.py`
+3. **Prompts personnalisés** : Modifiez `ADAPTATION_PROMPT_TEMPLATE` dans `config.py`
+
+### Tests
+
+```bash
+# Tester localement avec un exemple
+cd agent
+uv run cv-matcher --job-description ../examples/job_description_sre.txt
+```
+
+### Avantages de l'architecture modulaire
+
+- **Maintenabilité** : Chaque module a une responsabilité unique
+- **Testabilité** : Les modules peuvent être testés indépendamment
+- **Extensibilité** : Facile d'ajouter de nouvelles fonctionnalités
+- **Lisibilité** : Code plus court et plus facile à comprendre
 
 ## Licence
 
