@@ -49,7 +49,7 @@ class LaTeXWriter:
 
             updated_cv = re.sub(
                 r"\\tagline\{[^}]+\}",
-                lambda m: f"\\\\tagline{{{tagline_content}}}",
+                lambda m: f"\\tagline{{{tagline_content}}}",
                 updated_cv,
                 flags=re.DOTALL,
             )
