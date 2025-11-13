@@ -25,9 +25,7 @@ class GeminiAdapter:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
 
-    def adapt_cv(
-        self, sections: CVSections, job_description: str
-    ) -> Dict[str, str]:
+    def adapt_cv(self, sections: CVSections, job_description: str) -> Dict[str, str]:
         """
         Use Gemini to adapt the CV to match the job description.
 

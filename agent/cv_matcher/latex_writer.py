@@ -8,9 +8,7 @@ class LaTeXWriter:
     """Writer for applying adaptations to LaTeX CV files."""
 
     @staticmethod
-    def apply_adaptations(
-        original_cv: str, adaptations: Dict[str, str]
-    ) -> str:
+    def apply_adaptations(original_cv: str, adaptations: Dict[str, str]) -> str:
         """
         Apply the adaptations to the original CV.
 

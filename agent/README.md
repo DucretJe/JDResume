@@ -15,7 +15,7 @@ Cet agent utilise l'API Gemini pour adapter automatiquement votre CV LaTeX à un
 
 Le projet est structuré en modules logiques :
 
-```
+```text
 agent/
 ├── pyproject.toml              # Configuration uv et dépendances
 └── cv_matcher/                 # Package principal

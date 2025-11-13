@@ -40,7 +40,7 @@ See [agent/README.md](agent/README.md) for detailed documentation.
 * Go to `Actions`
 * Choose `CV Job Matcher` workflow on the left menu
 * Click on `Run workflow`
-* Paste the job description in the text field (or specify a path to a file in the repo)
+* Paste the job description in the text field (or specify a path to a file in the repository)
 * Confirm with the green `Run workflow` button
 * Wait for the workflow to complete
 * Download the adapted CV PDF from the artifacts
@@ -80,7 +80,7 @@ In order to be able to merge a Pull Request on this repository, the PR has to:
 
 ## Repository Structure
 
-```
+```text
 JDResume/
 ├── LaTeX/                    # LaTeX CV source files
 │   ├── resume.tex           # Main CV file

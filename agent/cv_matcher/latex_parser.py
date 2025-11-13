@@ -47,9 +47,7 @@ class LaTeXParser:
         sections = CVSections()
 
         # Extract tagline
-        tagline_match = re.search(
-            r"\\tagline\{([^}]+)\}", latex_content, re.DOTALL
-        )
+        tagline_match = re.search(r"\\tagline\{([^}]+)\}", latex_content, re.DOTALL)
         if tagline_match:
             sections.tagline = tagline_match.group(1)
 
