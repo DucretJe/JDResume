@@ -9,7 +9,7 @@ class AgentConfig:
     """Configuration for the CV Matcher Agent."""
 
     api_key: str
-    model_name: str = "gemini-1.5-pro"
+    model_name: str = "gemini-2.5-flash"
     cv_path: str = "./LaTeX/resume.tex"
     output_path: str = "./LaTeX/resume_adapted.tex"
 

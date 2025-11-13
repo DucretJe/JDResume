@@ -13,7 +13,7 @@ from cv_matcher.latex_parser import CVSections
 class GeminiAdapter:
     """Adapter for using Gemini API to adapt CV content."""
 
-    def __init__(self, api_key: str, model_name: str = "gemini-1.5-pro"):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
         """
         Initialize the Gemini adapter.
 
