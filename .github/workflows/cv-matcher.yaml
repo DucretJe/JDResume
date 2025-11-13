@@ -82,13 +82,13 @@ jobs:
           ls -lh adapted_cv_*.pdf
 
       - name: Upload adapted CV PDF as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: adapted-cv-pdf
           path: adapted_cv_*.pdf
 
       - name: Upload adapted LaTeX source
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: adapted-cv-latex
           path: ./LaTeX/resume_adapted.tex
