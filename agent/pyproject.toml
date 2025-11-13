@@ -21,8 +21,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["cv_matcher"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "black>=24.0.0",
     "flake8>=7.0.0",
     "isort>=5.13.0",
