@@ -37,3 +37,7 @@ wheels/
 # Test outputs
 test_output/
 *.log
+
+# uv
+uv.lock
+.venv/
