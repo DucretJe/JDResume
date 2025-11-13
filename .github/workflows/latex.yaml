@@ -36,11 +36,11 @@ jobs:
 
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       - name: Create tag
         id: tag
-        run: echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Pushing a release commit tag
         uses: ncipollo/release-action@v1
