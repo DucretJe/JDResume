@@ -78,7 +78,7 @@ jobs:
 
       - name: Rename PDF
         run: |
-          mv resume_adapted.pdf adapted_cv_$(date +'%Y%m%d_%H%M%S').pdf
+          mv resume_adapted.pdf "adapted_cv_$(date +'%Y%m%d_%H%M%S').pdf"
           ls -lh adapted_cv_*.pdf
 
       - name: Upload adapted CV PDF as artifact

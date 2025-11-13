@@ -6,7 +6,6 @@ import sys
 from typing import Dict
 
 import google.generativeai as genai
-
 from cv_matcher.config import ADAPTATION_PROMPT_TEMPLATE
 from cv_matcher.latex_parser import CVSections
 
