@@ -36,7 +36,7 @@ class AgentConfig:
 
         return cls(
             api_key=api_key,
-            model_name=kwargs.get("model_name", "gemini-1.5-pro"),
+            model_name=kwargs.get("model_name", "gemini-2.5-flash"),
             cv_path=kwargs.get("cv_path", "./LaTeX/resume.tex"),
             output_path=kwargs.get("output_path", "./LaTeX/resume_adapted.tex"),
         )
