@@ -54,6 +54,82 @@ class GeminiAdapter:
         # Parse the JSON response
         return self._parse_response(response_text)
 
+    def fix_adaptation_errors(
+        self,
+        sections: CVSections,
+        job_description: str,
+        previous_adaptations: Dict[str, str],
+        validation_error: str
+    ) -> Dict[str, str]:
+        """
+        Ask Gemini to fix validation errors in previous adaptation attempt.
+
+        Args:
+            sections: Original CV sections
+            job_description: Target job description
+            previous_adaptations: Previous adaptation that failed validation
+            validation_error: The validation error message
+
+        Returns:
+            Dictionary with corrected adapted sections
+        """
+        from cv_matcher.latex_parser import LaTeXParser
+
+        sections_dict = LaTeXParser.sections_to_dict(sections)
+
+        # Create feedback prompt
+        feedback_prompt = f"""Your previous CV adaptation had a LaTeX structure error.
+
+VALIDATION ERROR:
+{validation_error}
+
+PREVIOUS ADAPTATION (with error):
+{json.dumps(previous_adaptations, indent=2)}
+
+ORIGINAL CV SECTIONS:
+---
+Tagline: {sections_dict['tagline']}
+Work History: {sections_dict['mainbar'][:500]}...
+Detailed Experiences: {sections_dict['experiences'][:500]}...
+---
+
+JOB DESCRIPTION:
+{job_description}
+
+TASK:
+Fix the LaTeX structure error in your previous adaptation. The error message indicates the problem.
+Common issues:
+- Unmatched braces (every {{ must have a }})
+- Missing or extra LaTeX commands
+- Improperly escaped backslashes in JSON
+
+Return ONLY a corrected JSON object with the SAME structure, but with the errors fixed:
+{{
+    "tagline": "corrected tagline",
+    "mainbar": "corrected mainbar",
+    "experiences": "corrected experiences",
+    "general_skills": "corrected general_skills",
+    "highlightbar": "corrected highlightbar",
+    "explanation": "Brief explanation of what was fixed"
+}}
+
+CRITICAL:
+1. Ensure all LaTeX braces are properly matched
+2. Preserve all LaTeX commands from the original
+3. Escape all backslashes properly for JSON (\\\\section, not \\section)
+"""
+
+        # Call Gemini API
+        try:
+            response = self.model.generate_content(feedback_prompt)
+            response_text = response.text
+        except Exception as e:
+            print(f"Error calling Gemini API for fix: {e}", file=sys.stderr)
+            raise
+
+        # Parse the response
+        return self._parse_response(response_text)
+
     @staticmethod
     def _fix_json_escaping(json_text: str) -> str:
         """
