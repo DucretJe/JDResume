@@ -102,6 +102,23 @@ Common issues:
 - Unmatched braces (every {{ must have a }})
 - Missing or extra LaTeX commands
 - Improperly escaped backslashes in JSON
+- Changed LaTeX command structure (e.g., modified \\job{{}}{{}}{{}} format)
+- Added or removed LaTeX commands that were/weren't in the original
+
+CRITICAL LATEX STRUCTURE RULES:
+================================
+You MUST preserve the EXACT LaTeX structure from the original:
+- Keep ALL LaTeX commands (\\job, \\skill, \\tag, \\section, \\subsection, etc.)
+- Keep the SAME NUMBER of arguments for each command
+- Keep line breaks (\\\\) in the same places
+- Keep spacing commands (\\vspace, \\bigskip) unchanged
+- Only modify TEXT CONTENT inside commands, never the commands themselves
+
+Example:
+- Original: \\job{{2020}}{{Company}}{{Title}}
+- Correct: \\job{{2020}}{{Company}}{{Senior Title}}  (only text changed)
+- WRONG: \\job{{Company}}{{Title}}{{2020}}  (argument order changed)
+- WRONG: \\textbf{{Company}} - Title  (command structure changed)
 
 Return ONLY a corrected JSON object with the SAME structure, but with the errors fixed:
 {{
@@ -115,8 +132,10 @@ Return ONLY a corrected JSON object with the SAME structure, but with the errors
 
 CRITICAL:
 1. Ensure all LaTeX braces are properly matched
-2. Preserve all LaTeX commands from the original
+2. Preserve ALL LaTeX commands from the original with their exact structure
 3. Escape all backslashes properly for JSON (\\\\section, not \\section)
+4. Do NOT add, remove, or restructure any LaTeX commands
+5. Only fix the specific error while maintaining all original structure
 """
 
         # Call Gemini API

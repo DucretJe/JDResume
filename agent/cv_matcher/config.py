@@ -58,6 +58,39 @@ a corresponding closing brace }}. Count your braces carefully!
 5. Maintain professional tone and clarity
 6. Do NOT remove or add LaTeX commands - only modify their content
 
+CRITICAL LATEX STRUCTURE PRESERVATION RULES:
+==============================================
+YOU MUST PRESERVE THE EXACT LATEX STRUCTURE. Only modify the TEXT CONTENT inside \
+LaTeX commands, never the commands themselves or their structure.
+
+For example:
+- ORIGINAL: \\job{{09/2020 --- Current}}{{Evooq SA Lausanne}}{{Site Reliability Engineer}}
+- ALLOWED: \\job{{09/2020 --- Current}}{{Evooq SA Lausanne}}{{Senior Site Reliability Engineer}}
+- FORBIDDEN: Change to \\job{{Evooq SA Lausanne}}{{Site Reliability Engineer}}{{09/2020 --- Current}}
+- FORBIDDEN: Remove the \\job command and write plain text
+- FORBIDDEN: Add new \\job commands that don't exist in the original
+
+The same applies to ALL LaTeX commands:
+- \\skill{{Name}}{{Level}}: Keep structure, only change Name or Level text
+- \\tag{{Technology}}: Keep structure, only change Technology text
+- \\section{{Title}}: Keep the command, only change Title text
+- \\subsection{{Title}}: Keep the command, only change Title text
+- Line breaks (\\\\): Preserve them exactly as in original
+- Spacing (\\vspace, \\bigskip, etc.): Keep them unchanged
+
+YOU CAN:
+- Change text content inside LaTeX commands
+- Reorder items (e.g., reorder \\job or \\skill commands)
+- Emphasize certain words in descriptions
+
+YOU CANNOT:
+- Add new LaTeX commands (\\job, \\skill, \\tag, etc.) that don't exist
+- Remove LaTeX commands
+- Change command structure (number of arguments, braces)
+- Modify spacing commands (\\vspace, \\bigskip, etc.)
+- Change line breaks unless absolutely necessary
+- Add or remove line breaks (\\\\) arbitrarily
+
 ORIGINAL CV SECTIONS:
 ---
 Tagline:
@@ -85,10 +118,10 @@ TASK:
 Analyze the job description and adapt the CV sections to better match it. \
 Focus on:
 1. Rewriting the tagline to highlight the most relevant experience for this role
-2. Reordering or emphasizing work experiences that match the job requirements
-3. Reformulating experience descriptions to use keywords from the job description
-4. Highlighting relevant skills that match the job
-5. Adjusting the general skills tags to prioritize relevant technologies
+2. Reordering work experiences to put most relevant first (keep \\job commands structure!)
+3. Reformulating experience descriptions to use keywords from the job description (keep paragraph structure!)
+4. Reordering skills to highlight relevant ones first (keep \\skill and \\tag commands!)
+5. Adjusting emphasis in text content only
 
 Return ONLY a JSON object with the following structure:
 {{
@@ -109,6 +142,13 @@ CRITICAL JSON FORMATTING RULES:
    - Write \\\\\\\\ (four backslashes) for LaTeX line breaks (\\\\)
 2. Newlines should be \\n
 3. The JSON must be valid and parseable by json.loads()
+
+EXAMPLE OF CORRECT LATEX STRUCTURE PRESERVATION:
+Original: \\tag{{Kubernetes}}\\n\\tag{{Docker}}\\n\\tag{{Python}}
+If job requires Docker expertise, you can reorder:
+Correct: \\tag{{Docker}}\\n\\tag{{Kubernetes}}\\n\\tag{{Python}}
+WRONG: \\tag{{Docker, Kubernetes, Python}} (changed structure!)
+WRONG: Docker, Kubernetes, Python (removed commands!)
 
 Make sure all LaTeX formatting is preserved exactly as in the original, \
 but properly escaped for JSON."""
