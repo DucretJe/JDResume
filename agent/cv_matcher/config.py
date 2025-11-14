@@ -98,4 +98,15 @@ Return ONLY a JSON object with the following structure:
     "explanation": "Brief explanation of changes made"
 }}
 
-Make sure all LaTeX formatting is preserved exactly as in the original."""
+CRITICAL JSON FORMATTING RULES:
+1. All LaTeX backslashes MUST be escaped as double backslashes in JSON
+   - Write \\\\section NOT \\section
+   - Write \\\\job NOT \\job
+   - Write \\\\tag NOT \\tag
+   - Write \\\\skill NOT \\skill
+   - Write \\\\\\\\ (four backslashes) for LaTeX line breaks (\\\\)
+2. Newlines should be \\n
+3. The JSON must be valid and parseable by json.loads()
+
+Make sure all LaTeX formatting is preserved exactly as in the original, \
+but properly escaped for JSON."""

@@ -55,6 +55,77 @@ class GeminiAdapter:
         return self._parse_response(response_text)
 
     @staticmethod
+    def _fix_json_escaping(json_text: str) -> str:
+        """
+        Attempt to fix common JSON escaping issues with LaTeX backslashes.
+
+        This handles cases where Gemini returns LaTeX commands with unescaped
+        backslashes (e.g., \section instead of \\section) and unescaped newlines.
+
+        Args:
+            json_text: JSON string with potential escaping issues
+
+        Returns:
+            JSON string with fixed escaping
+        """
+        # Step 1: Fix literal newlines, tabs, and other control characters in strings
+        # We need to be careful to only fix these inside JSON string values
+        # Use a more robust approach: parse character by character inside strings
+
+        fixed_chars = []
+        in_string = False
+        escape_next = False
+
+        for i, char in enumerate(json_text):
+            if escape_next:
+                fixed_chars.append(char)
+                escape_next = False
+                continue
+
+            if char == '\\':
+                fixed_chars.append(char)
+                escape_next = True
+                continue
+
+            if char == '"':
+                in_string = not in_string
+                fixed_chars.append(char)
+                continue
+
+            if in_string:
+                # Inside a string - escape control characters
+                if char == '\n':
+                    fixed_chars.append('\\n')
+                elif char == '\r':
+                    fixed_chars.append('\\r')
+                elif char == '\t':
+                    fixed_chars.append('\\t')
+                else:
+                    fixed_chars.append(char)
+            else:
+                fixed_chars.append(char)
+
+        json_text = ''.join(fixed_chars)
+
+        # Step 2: Fix LaTeX backslashes
+        # Now handle backslash escaping for LaTeX commands
+        # First, temporarily mark already-escaped backslashes
+        json_text = json_text.replace('\\\\', '\x00ESCAPED_BACKSLASH\x00')
+
+        # Fix unescaped backslashes followed by letters (LaTeX commands)
+        # This regex finds backslash followed by a character that's not part of valid JSON escapes
+        json_text = re.sub(
+            r'\\(?![nrtbfu"\\/\x00])',
+            r'\\\\',
+            json_text
+        )
+
+        # Restore the escaped backslashes
+        json_text = json_text.replace('\x00ESCAPED_BACKSLASH\x00', '\\\\')
+
+        return json_text
+
+    @staticmethod
     def _parse_response(response_text: str) -> Dict[str, str]:
         """
         Parse the JSON response from Gemini.
@@ -78,8 +149,15 @@ class GeminiAdapter:
         try:
             adaptations = json.loads(response_text)
         except json.JSONDecodeError as e:
-            print(f"Error parsing JSON response: {e}", file=sys.stderr)
-            print(f"Response was: {response_text}", file=sys.stderr)
-            raise ValueError(f"Failed to parse Gemini response: {e}")
+            # Try to fix common JSON escaping issues with LaTeX backslashes
+            print(f"Initial JSON parse failed: {e}. Attempting to repair...", file=sys.stderr)
+            try:
+                fixed_text = GeminiAdapter._fix_json_escaping(response_text)
+                adaptations = json.loads(fixed_text)
+                print("✓ JSON repair successful", file=sys.stderr)
+            except json.JSONDecodeError as e2:
+                print(f"Error parsing JSON response after repair: {e2}", file=sys.stderr)
+                print(f"Original response was: {response_text[:500]}...", file=sys.stderr)
+                raise ValueError(f"Failed to parse Gemini response: {e2}")
 
         return adaptations
