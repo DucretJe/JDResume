@@ -69,7 +69,7 @@ jobs:
           wget https://media.githubusercontent.com/media/DucretJe/JDResume/main/LaTeX/photo.jpg -O picture.jpg
 
       - name: Compile adapted CV to PDF
-        uses: xu-cheng/latex-action@v3
+        uses: xu-cheng/latex-action@v4
         with:
           root_file: ./LaTeX/resume_adapted.tex
           latexmk_use_xelatex: true
