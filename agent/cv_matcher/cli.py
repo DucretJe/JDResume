@@ -58,7 +58,10 @@ class CVMatcherCLI:
             else:
                 # Retry with error feedback
                 print(f"\n🔄 Retry attempt {attempt}/{max_retries-1}")
-                print(f"Providing validation feedback to Gemini...")
+                print("Providing validation feedback to Gemini...")
+                # Type assertions: adaptations and validation_error are set in first iteration
+                assert adaptations is not None
+                assert validation_error is not None
                 adaptations = self.adapter.fix_adaptation_errors(
                     sections, job_description, adaptations, validation_error
                 )
@@ -81,6 +84,8 @@ class CVMatcherCLI:
                     print(f"\n❌ Failed after {max_retries} attempts", file=sys.stderr)
                     raise
 
+        # Type assertion: adapted_cv is set if we reach here (otherwise exception raised)
+        assert adapted_cv is not None
         print(f"💾 Saving adapted CV to: {self.config.output_path}")
         self.writer.write_file(self.config.output_path, adapted_cv)
 

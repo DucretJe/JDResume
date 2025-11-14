@@ -12,7 +12,9 @@ class LaTeXWriter:
     """Writer for applying adaptations to LaTeX CV files."""
 
     @staticmethod
-    def _compile_latex(latex_content: str, latex_dir: str = "../LaTeX", timeout: int = 30) -> Tuple[bool, str]:
+    def _compile_latex(
+        latex_content: str, latex_dir: str = "../LaTeX", timeout: int = 30
+    ) -> Tuple[bool, str]:
         """
         Attempt to compile LaTeX content to check for errors.
 
@@ -29,7 +31,7 @@ class LaTeXWriter:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write LaTeX content to temp file
             tex_file = os.path.join(tmpdir, "test.tex")
-            with open(tex_file, 'w', encoding='utf-8') as f:
+            with open(tex_file, "w", encoding="utf-8") as f:
                 f.write(latex_content)
 
             # Copy required LaTeX files (class file, supporting files)
@@ -37,7 +39,7 @@ class LaTeXWriter:
             latex_path = os.path.abspath(latex_dir)
             if os.path.exists(latex_path):
                 for filename in os.listdir(latex_path):
-                    if filename.endswith(('.cls', '.sty')):
+                    if filename.endswith((".cls", ".sty")):
                         src = os.path.join(latex_path, filename)
                         dst = os.path.join(tmpdir, filename)
                         try:
@@ -48,17 +50,22 @@ class LaTeXWriter:
             try:
                 # Run xelatex with minimal output
                 result = subprocess.run(
-                    ['xelatex', '-interaction=nonstopmode', '-halt-on-error',
-                     '-no-pdf', 'test.tex'],
+                    [
+                        "xelatex",
+                        "-interaction=nonstopmode",
+                        "-halt-on-error",
+                        "-no-pdf",
+                        "test.tex",
+                    ],
                     cwd=tmpdir,
                     capture_output=True,
                     text=True,
-                    timeout=timeout
+                    timeout=timeout,
                 )
 
                 if result.returncode != 0:
                     # Get the last 40 lines which usually contain the error context
-                    full_error = '\n'.join(result.stdout.split('\n')[-40:])
+                    full_error = "\n".join(result.stdout.split("\n")[-40:])
                     return False, f"LaTeX compilation failed:\n{full_error}"
 
                 return True, ""
@@ -67,7 +74,10 @@ class LaTeXWriter:
                 return False, "LaTeX compilation timed out"
             except FileNotFoundError:
                 # xelatex not available - fall back to basic validation
-                print("⚠️  xelatex not available, skipping compilation check", file=sys.stderr)
+                print(
+                    "⚠️  xelatex not available, skipping compilation check",
+                    file=sys.stderr,
+                )
                 return True, ""
             except Exception as e:
                 return False, f"Compilation error: {str(e)}"
@@ -89,18 +99,21 @@ class LaTeXWriter:
         depth = 0
         i = 0
         while i < len(content):
-            if i > 0 and content[i-1] == '\\':
+            if i > 0 and content[i - 1] == "\\":
                 # This is an escaped brace, skip it
                 i += 1
                 continue
 
-            if content[i] == '{':
+            if content[i] == "{":
                 depth += 1
-            elif content[i] == '}':
+            elif content[i] == "}":
                 depth -= 1
 
             if depth < 0:
-                return False, f"Unmatched closing brace in {section_name} at position {i}"
+                return (
+                    False,
+                    f"Unmatched closing brace in {section_name} at position {i}",
+                )
 
             i += 1
 
@@ -110,7 +123,9 @@ class LaTeXWriter:
         return True, ""
 
     @staticmethod
-    def _validate_latex_structure(original_cv: str, adapted_cv: str) -> Tuple[bool, str]:
+    def _validate_latex_structure(
+        original_cv: str, adapted_cv: str
+    ) -> Tuple[bool, str]:
         """
         Validate that the adapted CV has valid LaTeX structure.
 
@@ -127,11 +142,19 @@ class LaTeXWriter:
             return False, error
 
         # Check that key structural commands are still present
-        required_commands = [r'\\name\{', r'\\tagline\{', r'\\makeheader\{',
-                           r'\\highlightbar\{', r'\\mainbar\{']
+        required_commands = [
+            r"\\name\{",
+            r"\\tagline\{",
+            r"\\makeheader\{",
+            r"\\highlightbar\{",
+            r"\\mainbar\{",
+        ]
         for cmd in required_commands:
             if not re.search(cmd, adapted_cv):
-                return False, f"Missing required command {cmd.replace(chr(92)*2, chr(92))} in adapted CV"
+                return (
+                    False,
+                    f"Missing required command {cmd.replace(chr(92)*2, chr(92))} in adapted CV",
+                )
 
         return True, ""
 
@@ -152,7 +175,7 @@ class LaTeXWriter:
             return content.strip()
         else:
             # More aggressive cleaning if needed
-            return ' '.join(content.split())
+            return " ".join(content.split())
 
     @staticmethod
     def apply_adaptations(original_cv: str, adaptations: Dict[str, str]) -> str:
@@ -174,9 +197,11 @@ class LaTeXWriter:
         # Replace tagline
         if "tagline" in adaptations:
             # Strip leading/trailing whitespace and normalize line breaks
-            tagline_content = adaptations['tagline'].strip()
+            tagline_content = adaptations["tagline"].strip()
             # Remove any LaTeX command prefix if Gemini accidentally included it
-            tagline_content = re.sub(r'^\\tagline\{(.+)\}$', r'\1', tagline_content, flags=re.DOTALL)
+            tagline_content = re.sub(
+                r"^\\tagline\{(.+)\}$", r"\1", tagline_content, flags=re.DOTALL
+            )
 
             # Validate braces in tagline
             is_valid, error = LaTeXWriter._validate_braces(tagline_content, "tagline")
@@ -193,24 +218,30 @@ class LaTeXWriter:
 
         # Replace highlightbar section
         if "highlightbar" in adaptations:
-            highlightbar_content = LaTeXWriter._clean_content(adaptations['highlightbar'])
+            highlightbar_content = LaTeXWriter._clean_content(
+                adaptations["highlightbar"]
+            )
 
             # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(highlightbar_content, "highlightbar")
+            is_valid, error = LaTeXWriter._validate_braces(
+                highlightbar_content, "highlightbar"
+            )
             if not is_valid:
                 print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(f"Content preview: {highlightbar_content[:100]}...", file=sys.stderr)
+                print(
+                    f"Content preview: {highlightbar_content[:100]}...", file=sys.stderr
+                )
 
             updated_cv = re.sub(
                 r"(\\highlightbar\{)(.*?)(\n\})",
-                lambda m: m.group(1) + '\n' + highlightbar_content + m.group(3),
+                lambda m: m.group(1) + "\n" + highlightbar_content + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
 
         # Replace mainbar section
         if "mainbar" in adaptations:
-            mainbar_content = LaTeXWriter._clean_content(adaptations['mainbar'])
+            mainbar_content = LaTeXWriter._clean_content(adaptations["mainbar"])
 
             # Validate braces in mainbar - this is critical!
             is_valid, error = LaTeXWriter._validate_braces(mainbar_content, "mainbar")
@@ -220,41 +251,56 @@ class LaTeXWriter:
 
             updated_cv = re.sub(
                 r"(\\mainbar\{)(.*?)(\\makebody)",
-                lambda m: m.group(1) + '\n' + mainbar_content + '\n\n' + m.group(3),
+                lambda m: m.group(1) + "\n" + mainbar_content + "\n\n" + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
 
         # Replace experiences section
         if "experiences" in adaptations:
-            experiences_content = LaTeXWriter._clean_content(adaptations['experiences'])
+            experiences_content = LaTeXWriter._clean_content(adaptations["experiences"])
 
             # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(experiences_content, "experiences")
+            is_valid, error = LaTeXWriter._validate_braces(
+                experiences_content, "experiences"
+            )
             if not is_valid:
                 print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(f"Content preview: {experiences_content[:200]}...", file=sys.stderr)
+                print(
+                    f"Content preview: {experiences_content[:200]}...", file=sys.stderr
+                )
 
             updated_cv = re.sub(
                 r"(\\section\{Experiences description\})(.*?)(\\makebody)",
-                lambda m: m.group(1) + '\n' + experiences_content + '\n\n' + m.group(3),
+                lambda m: m.group(1) + "\n" + experiences_content + "\n\n" + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
 
         # Replace general skills
         if "general_skills" in adaptations:
-            general_skills_content = LaTeXWriter._clean_content(adaptations['general_skills'])
+            general_skills_content = LaTeXWriter._clean_content(
+                adaptations["general_skills"]
+            )
 
             # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(general_skills_content, "general_skills")
+            is_valid, error = LaTeXWriter._validate_braces(
+                general_skills_content, "general_skills"
+            )
             if not is_valid:
                 print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(f"Content preview: {general_skills_content[:100]}...", file=sys.stderr)
+                print(
+                    f"Content preview: {general_skills_content[:100]}...",
+                    file=sys.stderr,
+                )
 
             updated_cv = re.sub(
                 r"(\\section\{General Skills\})(.*?)(\\section\{Wheel Chart\})",
-                lambda m: m.group(1) + '\n' + general_skills_content + '\n\n' + m.group(3),
+                lambda m: m.group(1)
+                + "\n"
+                + general_skills_content
+                + "\n\n"
+                + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
@@ -263,7 +309,7 @@ class LaTeXWriter:
         print("🔍 Compiling LaTeX to validate structure...", file=sys.stderr)
         is_valid, error = LaTeXWriter._compile_latex(updated_cv)
         if not is_valid:
-            print(f"❌ LaTeX compilation failed", file=sys.stderr)
+            print("❌ LaTeX compilation failed", file=sys.stderr)
             raise ValueError(f"LaTeX compilation error:\n{error}")
 
         print("✅ LaTeX compilation successful", file=sys.stderr)
