@@ -27,12 +27,13 @@ class CVMatcherCLI:
         )
         self.writer = LaTeXWriter()
 
-    def run(self, job_description_input: str) -> None:
+    def run(self, job_description_input: str, max_retries: int = 3) -> None:
         """
         Main processing function to adapt CV to job description.
 
         Args:
             job_description_input: Job description text or path to file
+            max_retries: Maximum number of retry attempts if validation fails
         """
         print("📄 Reading original CV...")
         original_cv = self.parser.read_file(self.config.cv_path)
@@ -44,15 +45,47 @@ class CVMatcherCLI:
         job_description = self._load_job_description(job_description_input)
 
         print("🤖 Analyzing CV and job description with Gemini...")
-        adaptations = self.adapter.adapt_cv(sections, job_description)
 
-        # Print explanation if available
-        if "explanation" in adaptations:
-            print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
+        # Agent feedback loop with retries
+        adaptations = None
+        adapted_cv = None
+        validation_error = None
 
-        print("✏️  Applying adaptations to CV...")
-        adapted_cv = self.writer.apply_adaptations(original_cv, adaptations)
+        for attempt in range(max_retries):
+            if attempt == 0:
+                # First attempt - normal adaptation
+                adaptations = self.adapter.adapt_cv(sections, job_description)
+            else:
+                # Retry with error feedback
+                print(f"\n🔄 Retry attempt {attempt}/{max_retries-1}")
+                print("Providing validation feedback to Gemini...")
+                # Type assertions: adaptations and validation_error are set in first iteration
+                assert adaptations is not None
+                assert validation_error is not None
+                adaptations = self.adapter.fix_adaptation_errors(
+                    sections, job_description, adaptations, validation_error
+                )
 
+            # Print explanation if available
+            if "explanation" in adaptations:
+                print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
+
+            print("✏️  Applying adaptations to CV...")
+            try:
+                adapted_cv = self.writer.apply_adaptations(original_cv, adaptations)
+
+                # Validation passed!
+                break
+            except ValueError as e:
+                validation_error = str(e)
+                print(f"⚠️  Validation failed: {validation_error}", file=sys.stderr)
+
+                if attempt == max_retries - 1:
+                    print(f"\n❌ Failed after {max_retries} attempts", file=sys.stderr)
+                    raise
+
+        # Type assertion: adapted_cv is set if we reach here (otherwise exception raised)
+        assert adapted_cv is not None
         print(f"💾 Saving adapted CV to: {self.config.output_path}")
         self.writer.write_file(self.config.output_path, adapted_cv)
 
@@ -110,8 +143,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-1.5-pro",
-        help="Gemini model to use (default: gemini-1.5-pro)",
+        default="gemini-2.5-flash",
+        help="Gemini model to use (default: gemini-2.5-flash)",
     )
 
     args = parser.parse_args()

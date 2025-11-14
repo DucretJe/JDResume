@@ -79,7 +79,7 @@ uv run cv-matcher \
   --job-description ../examples/job_description_devops.txt \
   --output ../LaTeX/resume_adapted.tex \
   --api-key "votre-clé-api" \
-  --model gemini-1.5-pro
+  --model gemini-2.5-flash
 ```
 
 ### Paramètres
@@ -88,7 +88,7 @@ uv run cv-matcher \
 - `--job-description` : Description du poste (texte ou chemin vers un fichier)
 - `--output` : Chemin de sortie pour le CV adapté (défaut: `./LaTeX/resume_adapted.tex`)
 - `--api-key` : Clé API Gemini (ou variable d'environnement `GEMINI_API_KEY`)
-- `--model` : Modèle Gemini à utiliser (défaut: `gemini-1.5-pro`)
+- `--model` : Modèle Gemini à utiliser (défaut: `gemini-2.5-flash`)
 
 ## Utilisation dans GitHub Actions
 
@@ -137,7 +137,7 @@ L'agent suit ces règles pour garantir l'intégrité :
 Assurez-vous d'avoir défini la variable d'environnement `GEMINI_API_KEY` ou de passer la clé via `--api-key`.
 
 ### Erreur JSON parsing
-Si l'agent a du mal à parser la réponse de Gemini, vérifiez que vous utilisez un modèle récent (gemini-1.5-pro recommandé).
+Si l'agent a du mal à parser la réponse de Gemini, vérifiez que vous utilisez un modèle récent (gemini-2.5-flash recommandé).
 
 ### Le CV adapté ne compile pas
 L'agent préserve le format LaTeX, mais si la compilation échoue, vérifiez que le CV original compile correctement d'abord.

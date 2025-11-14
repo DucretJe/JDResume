@@ -9,7 +9,7 @@ class AgentConfig:
     """Configuration for the CV Matcher Agent."""
 
     api_key: str
-    model_name: str = "gemini-1.5-pro"
+    model_name: str = "gemini-2.5-flash"
     cv_path: str = "./LaTeX/resume.tex"
     output_path: str = "./LaTeX/resume_adapted.tex"
 
@@ -36,7 +36,7 @@ class AgentConfig:
 
         return cls(
             api_key=api_key,
-            model_name=kwargs.get("model_name", "gemini-1.5-pro"),
+            model_name=kwargs.get("model_name", "gemini-2.5-flash"),
             cv_path=kwargs.get("cv_path", "./LaTeX/resume.tex"),
             output_path=kwargs.get("output_path", "./LaTeX/resume_adapted.tex"),
         )
@@ -53,8 +53,10 @@ already in the CV
 2. DO NOT exaggerate or lie about capabilities
 3. ONLY reformulate, reorder, and highlight existing content to better match the \
 job description
-4. Keep the LaTeX formatting intact
+4. Keep the LaTeX formatting intact - CRITICAL: Every opening brace {{ must have \
+a corresponding closing brace }}. Count your braces carefully!
 5. Maintain professional tone and clarity
+6. Do NOT remove or add LaTeX commands - only modify their content
 
 ORIGINAL CV SECTIONS:
 ---
@@ -98,4 +100,15 @@ Return ONLY a JSON object with the following structure:
     "explanation": "Brief explanation of changes made"
 }}
 
-Make sure all LaTeX formatting is preserved exactly as in the original."""
+CRITICAL JSON FORMATTING RULES:
+1. All LaTeX backslashes MUST be escaped as double backslashes in JSON
+   - Write \\\\section NOT \\section
+   - Write \\\\job NOT \\job
+   - Write \\\\tag NOT \\tag
+   - Write \\\\skill NOT \\skill
+   - Write \\\\\\\\ (four backslashes) for LaTeX line breaks (\\\\)
+2. Newlines should be \\n
+3. The JSON must be valid and parseable by json.loads()
+
+Make sure all LaTeX formatting is preserved exactly as in the original, \
+but properly escaped for JSON."""

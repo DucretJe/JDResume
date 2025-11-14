@@ -18,8 +18,11 @@ cv-matcher = "cv_matcher.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.uv]
-dev-dependencies = [
+[tool.hatch.build.targets.wheel]
+packages = ["cv_matcher"]
+
+[dependency-groups]
+dev = [
     "black>=24.0.0",
     "flake8>=7.0.0",
     "isort>=5.13.0",
