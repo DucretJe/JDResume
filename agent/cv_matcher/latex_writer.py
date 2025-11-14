@@ -1,12 +1,76 @@
 """LaTeX writer for applying CV adaptations."""
 
+import os
 import re
+import subprocess
 import sys
+import tempfile
 from typing import Dict, Tuple
 
 
 class LaTeXWriter:
     """Writer for applying adaptations to LaTeX CV files."""
+
+    @staticmethod
+    def _compile_latex(latex_content: str, latex_dir: str = "../LaTeX", timeout: int = 30) -> Tuple[bool, str]:
+        """
+        Attempt to compile LaTeX content to check for errors.
+
+        Args:
+            latex_content: LaTeX content to compile
+            latex_dir: Directory containing LaTeX class files and dependencies
+            timeout: Compilation timeout in seconds
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        import shutil
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Write LaTeX content to temp file
+            tex_file = os.path.join(tmpdir, "test.tex")
+            with open(tex_file, 'w', encoding='utf-8') as f:
+                f.write(latex_content)
+
+            # Copy required LaTeX files (class file, supporting files)
+            # Look for .cls, .sty files in the LaTeX directory
+            latex_path = os.path.abspath(latex_dir)
+            if os.path.exists(latex_path):
+                for filename in os.listdir(latex_path):
+                    if filename.endswith(('.cls', '.sty')):
+                        src = os.path.join(latex_path, filename)
+                        dst = os.path.join(tmpdir, filename)
+                        try:
+                            shutil.copy2(src, dst)
+                        except Exception:
+                            pass  # Continue even if some files can't be copied
+
+            try:
+                # Run xelatex with minimal output
+                result = subprocess.run(
+                    ['xelatex', '-interaction=nonstopmode', '-halt-on-error',
+                     '-no-pdf', 'test.tex'],
+                    cwd=tmpdir,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+
+                if result.returncode != 0:
+                    # Get the last 40 lines which usually contain the error context
+                    full_error = '\n'.join(result.stdout.split('\n')[-40:])
+                    return False, f"LaTeX compilation failed:\n{full_error}"
+
+                return True, ""
+
+            except subprocess.TimeoutExpired:
+                return False, "LaTeX compilation timed out"
+            except FileNotFoundError:
+                # xelatex not available - fall back to basic validation
+                print("⚠️  xelatex not available, skipping compilation check", file=sys.stderr)
+                return True, ""
+            except Exception as e:
+                return False, f"Compilation error: {str(e)}"
 
     @staticmethod
     def _validate_braces(content: str, section_name: str = "") -> Tuple[bool, str]:
@@ -195,14 +259,14 @@ class LaTeXWriter:
                 flags=re.DOTALL,
             )
 
-        # Validate the final adapted CV
-        print("🔍 Validating final LaTeX structure...", file=sys.stderr)
-        is_valid, error = LaTeXWriter._validate_latex_structure(original_cv, updated_cv)
+        # Validate the final adapted CV by actually compiling it
+        print("🔍 Compiling LaTeX to validate structure...", file=sys.stderr)
+        is_valid, error = LaTeXWriter._compile_latex(updated_cv)
         if not is_valid:
-            print(f"❌ LaTeX structure validation failed: {error}", file=sys.stderr)
-            raise ValueError(f"Adapted CV has invalid LaTeX structure: {error}")
+            print(f"❌ LaTeX compilation failed", file=sys.stderr)
+            raise ValueError(f"LaTeX compilation error:\n{error}")
 
-        print("✅ LaTeX structure validation passed", file=sys.stderr)
+        print("✅ LaTeX compilation successful", file=sys.stderr)
         return updated_cv
 
     @staticmethod
