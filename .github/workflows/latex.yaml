@@ -14,7 +14,7 @@ jobs:
       - run: echo "🤖 Beep Boop I'm going to compile this amazing CV"
   
       - name: Check out repository code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v4
