@@ -56,7 +56,7 @@ jobs:
             --cv ../LaTeX/resume.tex \
             --job-description /tmp/job_description.txt \
             --output ../LaTeX/resume_adapted.tex \
-            --model gemini-3-pro
+            --model gemini-3-pro-preview
 
       - name: Show adaptation summary
         run: |
