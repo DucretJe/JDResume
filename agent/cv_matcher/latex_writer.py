@@ -192,22 +192,38 @@ class LaTeXWriter:
         Raises:
             ValueError: If adapted content has invalid LaTeX structure
         """
+        # First, validate ALL sections BEFORE applying any changes
+        print("🔍 Validating adapted sections...", file=sys.stderr)
+        validation_errors = []
+
+        for section_name in ["tagline", "mainbar", "experiences", "general_skills", "highlightbar"]:
+            if section_name in adaptations:
+                content = adaptations[section_name].strip()
+                is_valid, error = LaTeXWriter._validate_braces(content, section_name)
+                if not is_valid:
+                    validation_errors.append(f"{section_name}: {error}")
+                    print(f"❌ {section_name}: {error}", file=sys.stderr)
+                    # Show context around the error
+                    print(f"   Content preview: {content[:200]}...", file=sys.stderr)
+                else:
+                    print(f"✓ {section_name}: braces balanced", file=sys.stderr)
+
+        # If any validation errors, raise immediately
+        if validation_errors:
+            error_msg = "Brace validation failed:\n" + "\n".join(validation_errors)
+            raise ValueError(error_msg)
+
+        print("✅ All sections validated", file=sys.stderr)
+
         updated_cv = original_cv
 
         # Replace tagline
         if "tagline" in adaptations:
-            # Strip leading/trailing whitespace and normalize line breaks
             tagline_content = adaptations["tagline"].strip()
             # Remove any LaTeX command prefix if Gemini accidentally included it
             tagline_content = re.sub(
                 r"^\\tagline\{(.+)\}$", r"\1", tagline_content, flags=re.DOTALL
             )
-
-            # Validate braces in tagline
-            is_valid, error = LaTeXWriter._validate_braces(tagline_content, "tagline")
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(f"Content: {tagline_content[:100]}...", file=sys.stderr)
 
             updated_cv = re.sub(
                 r"\\tagline\{[^}]+\}",
@@ -222,16 +238,6 @@ class LaTeXWriter:
                 adaptations["highlightbar"]
             )
 
-            # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(
-                highlightbar_content, "highlightbar"
-            )
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(
-                    f"Content preview: {highlightbar_content[:100]}...", file=sys.stderr
-                )
-
             updated_cv = re.sub(
                 r"(\\highlightbar\{)(.*?)(\n\})",
                 lambda m: m.group(1) + "\n" + highlightbar_content + m.group(3),
@@ -243,12 +249,6 @@ class LaTeXWriter:
         if "mainbar" in adaptations:
             mainbar_content = LaTeXWriter._clean_content(adaptations["mainbar"])
 
-            # Validate braces in mainbar - this is critical!
-            is_valid, error = LaTeXWriter._validate_braces(mainbar_content, "mainbar")
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(f"Content preview: {mainbar_content[:200]}...", file=sys.stderr)
-
             updated_cv = re.sub(
                 r"(\\mainbar\{)(.*?)(\\makebody)",
                 lambda m: m.group(1) + "\n" + mainbar_content + "\n\n" + m.group(3),
@@ -259,16 +259,6 @@ class LaTeXWriter:
         # Replace experiences section
         if "experiences" in adaptations:
             experiences_content = LaTeXWriter._clean_content(adaptations["experiences"])
-
-            # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(
-                experiences_content, "experiences"
-            )
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(
-                    f"Content preview: {experiences_content[:200]}...", file=sys.stderr
-                )
 
             updated_cv = re.sub(
                 r"(\\section\{Experiences description\})(.*?)(\\makebody)",
@@ -283,17 +273,6 @@ class LaTeXWriter:
                 adaptations["general_skills"]
             )
 
-            # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(
-                general_skills_content, "general_skills"
-            )
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(
-                    f"Content preview: {general_skills_content[:100]}...",
-                    file=sys.stderr,
-                )
-
             updated_cv = re.sub(
                 r"(\\section\{General Skills\})(.*?)(\\section\{Wheel Chart\})",
                 lambda m: m.group(1)
@@ -306,7 +285,7 @@ class LaTeXWriter:
             )
 
         # Validate the final adapted CV by actually compiling it
-        print("🔍 Compiling LaTeX to validate structure...", file=sys.stderr)
+        print("🔨 Compiling LaTeX to validate structure...", file=sys.stderr)
         is_valid, error = LaTeXWriter._compile_latex(updated_cv)
         if not is_valid:
             print("❌ LaTeX compilation failed", file=sys.stderr)
