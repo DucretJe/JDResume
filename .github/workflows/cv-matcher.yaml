@@ -55,7 +55,8 @@ jobs:
           uv run cv-matcher \
             --cv ../LaTeX/resume.tex \
             --job-description /tmp/job_description.txt \
-            --output ../LaTeX/resume_adapted.tex
+            --output ../LaTeX/resume_adapted.tex \
+            --model gemini-2.5-pro
 
       - name: Show adaptation summary
         run: |

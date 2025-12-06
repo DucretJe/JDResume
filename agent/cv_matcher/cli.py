@@ -216,8 +216,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-2.5-flash",
-        help="Gemini model to use (default: gemini-2.5-flash)",
+        default="gemini-2.5-pro",
+        help="Gemini model to use (default: gemini-2.5-pro)",
     )
 
     args = parser.parse_args()

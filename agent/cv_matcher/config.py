@@ -9,7 +9,7 @@ class AgentConfig:
     """Configuration for the CV Matcher Agent."""
 
     api_key: str
-    model_name: str = "gemini-2.5-flash"
+    model_name: str = "gemini-2.5-pro"
     cv_path: str = "./LaTeX/resume.tex"
     output_path: str = "./LaTeX/resume_adapted.tex"
 
@@ -36,7 +36,7 @@ class AgentConfig:
 
         return cls(
             api_key=api_key,
-            model_name=kwargs.get("model_name", "gemini-2.5-flash"),
+            model_name=kwargs.get("model_name", "gemini-2.5-pro"),
             cv_path=kwargs.get("cv_path", "./LaTeX/resume.tex"),
             output_path=kwargs.get("output_path", "./LaTeX/resume_adapted.tex"),
         )
