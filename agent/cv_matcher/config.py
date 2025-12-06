@@ -43,18 +43,15 @@ class AgentConfig:
 
 
 # Prompt template for Gemini
-ADAPTATION_PROMPT_TEMPLATE = """You are a professional CV optimization expert. \
-Your task is to adapt a CV to match a specific job description while staying \
+ADAPTATION_PROMPT_TEMPLATE = """You are a professional CV optimization expert.
+Your task is to adapt a CV to match a specific job description while staying
 COMPLETELY GROUNDED on the existing content.
 
 STRICT RULES:
-1. DO NOT invent or add any skills, experiences, or qualifications that are not \
-already in the CV
+1. DO NOT invent or add any skills, experiences, or qualifications not in the CV
 2. DO NOT exaggerate or lie about capabilities
-3. ONLY reformulate, reorder, and highlight existing content to better match the \
-job description
-4. Keep the LaTeX formatting intact - CRITICAL: Every opening brace {{ must have \
-a corresponding closing brace }}. Count your braces carefully!
+3. ONLY reformulate, reorder, and highlight existing content
+4. Keep LaTeX formatting intact - every {{ must have a matching }}
 5. Maintain professional tone and clarity
 6. Do NOT remove or add LaTeX commands - only modify their content
 
@@ -82,33 +79,18 @@ JOB DESCRIPTION:
 ---
 
 TASK:
-Analyze the job description and adapt the CV sections to better match it. \
+Analyze the job description and adapt the CV sections to better match it.
 Focus on:
-1. Rewriting the tagline to highlight the most relevant experience for this role
-2. Reordering or emphasizing work experiences that match the job requirements
-3. Reformulating experience descriptions to use keywords from the job description
+1. Rewriting the tagline to highlight relevant experience for this role
+2. Reordering or emphasizing work experiences matching job requirements
+3. Reformulating experience descriptions using keywords from the job description
 4. Highlighting relevant skills that match the job
-5. Adjusting the general skills tags to prioritize relevant technologies
+5. Adjusting general skills tags to prioritize relevant technologies
 
-Return ONLY a JSON object with the following structure:
-{{
-    "tagline": "adapted tagline here",
-    "mainbar": "adapted mainbar section here",
-    "experiences": "adapted experiences section here",
-    "general_skills": "adapted general skills section here",
-    "highlightbar": "adapted highlightbar section here",
-    "explanation": "Brief explanation of changes made"
-}}
+LATEX FORMATTING RULES:
+1. Preserve all LaTeX commands exactly (\\section, \\job, \\tag, \\skill, etc.)
+2. Every opening brace {{ must have a closing brace }}
+3. Use \\\\ for line breaks in LaTeX
+4. Special characters: use \\& for &, \\% for %, \\$ for $, \\# for #
 
-CRITICAL JSON FORMATTING RULES:
-1. All LaTeX backslashes MUST be escaped as double backslashes in JSON
-   - Write \\\\section NOT \\section
-   - Write \\\\job NOT \\job
-   - Write \\\\tag NOT \\tag
-   - Write \\\\skill NOT \\skill
-   - Write \\\\\\\\ (four backslashes) for LaTeX line breaks (\\\\)
-2. Newlines should be \\n
-3. The JSON must be valid and parseable by json.loads()
-
-Make sure all LaTeX formatting is preserved exactly as in the original, \
-but properly escaped for JSON."""
+Provide adapted content for each section, keeping the original LaTeX structure."""

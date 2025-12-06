@@ -31,6 +31,13 @@ class CVMatcherCLI:
         """
         Main processing function to adapt CV to job description.
 
+        Uses a feedback loop to automatically fix compilation errors:
+        1. Generate adaptation with Gemini (structured output)
+        2. Apply adaptations to CV
+        3. Compile LaTeX to validate
+        4. If compilation fails, send error back to Gemini for correction
+        5. Repeat until success or max retries reached
+
         Args:
             job_description_input: Job description text or path to file
             max_retries: Maximum number of retry attempts if validation fails
@@ -45,25 +52,35 @@ class CVMatcherCLI:
         job_description = self._load_job_description(job_description_input)
 
         print("🤖 Analyzing CV and job description with Gemini...")
+        print("   Using structured output for reliable JSON parsing")
 
         # Agent feedback loop with retries
         adaptations = None
         adapted_cv = None
         validation_error = None
+        failed_section = None
 
         for attempt in range(max_retries):
             if attempt == 0:
                 # First attempt - normal adaptation
+                print("\n📤 Sending adaptation request to Gemini...")
                 adaptations = self.adapter.adapt_cv(sections, job_description)
             else:
                 # Retry with error feedback
                 print(f"\n🔄 Retry attempt {attempt}/{max_retries-1}")
-                print("Providing validation feedback to Gemini...")
+                print("   Sending compilation error feedback to Gemini...")
+                if failed_section:
+                    print(f"   Problematic section identified: {failed_section}")
+
                 # Type assertions: adaptations and validation_error are set in first iteration
                 assert adaptations is not None
                 assert validation_error is not None
                 adaptations = self.adapter.fix_adaptation_errors(
-                    sections, job_description, adaptations, validation_error
+                    sections,
+                    job_description,
+                    adaptations,
+                    validation_error,
+                    failed_section,
                 )
 
             # Print explanation if available
@@ -71,25 +88,81 @@ class CVMatcherCLI:
                 print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
 
             print("✏️  Applying adaptations to CV...")
+            print("🔨 Compiling LaTeX to validate...")
+
             try:
                 adapted_cv = self.writer.apply_adaptations(original_cv, adaptations)
 
-                # Validation passed!
+                # Validation and compilation passed!
+                print("✅ LaTeX compilation successful!")
                 break
+
             except ValueError as e:
                 validation_error = str(e)
-                print(f"⚠️  Validation failed: {validation_error}", file=sys.stderr)
+                failed_section = self._extract_failed_section(validation_error)
+
+                print("\n⚠️  Build failed!", file=sys.stderr)
+                if failed_section:
+                    print(f"   Section: {failed_section}", file=sys.stderr)
+
+                # Show truncated error for user
+                error_preview = (
+                    validation_error[:500] + "..."
+                    if len(validation_error) > 500
+                    else validation_error
+                )
+                print(f"   Error: {error_preview}", file=sys.stderr)
 
                 if attempt == max_retries - 1:
                     print(f"\n❌ Failed after {max_retries} attempts", file=sys.stderr)
+                    print("   The AI could not produce valid LaTeX.", file=sys.stderr)
                     raise
+
+                print("\n🔁 Asking Gemini to fix the error...")
 
         # Type assertion: adapted_cv is set if we reach here (otherwise exception raised)
         assert adapted_cv is not None
-        print(f"💾 Saving adapted CV to: {self.config.output_path}")
+        print(f"\n💾 Saving adapted CV to: {self.config.output_path}")
         self.writer.write_file(self.config.output_path, adapted_cv)
 
-        print("✅ CV adaptation complete!")
+        print("\n✅ CV adaptation complete!")
+
+    @staticmethod
+    def _extract_failed_section(error_message: str) -> str | None:
+        """
+        Extract the section name that caused the validation error.
+
+        Args:
+            error_message: The validation error message
+
+        Returns:
+            Section name if found, None otherwise
+        """
+        error_lower = error_message.lower()
+
+        # Check for section names in error message
+        sections = [
+            "tagline",
+            "mainbar",
+            "highlightbar",
+            "experiences",
+            "general_skills",
+        ]
+        for section in sections:
+            if section in error_lower:
+                return section
+
+        # Check for common LaTeX command patterns
+        if "\\job" in error_lower or "work history" in error_lower:
+            return "mainbar"
+        if "\\tag" in error_lower:
+            return "general_skills"
+        if "\\skill" in error_lower:
+            return "highlightbar"
+        if "experience" in error_lower:
+            return "experiences"
+
+        return None
 
     @staticmethod
     def _load_job_description(input_str: str) -> str:
