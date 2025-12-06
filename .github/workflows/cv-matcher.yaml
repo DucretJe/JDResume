@@ -75,7 +75,8 @@ jobs:
             --cv ../LaTeX/resume.tex \
             --job-description /tmp/job_description.txt \
             --output ../LaTeX/resume_adapted.tex \
-            --model ${{ inputs.model }}
+            --model ${{ inputs.model }} \
+            --max-retries 5
 
       - name: Show adaptation summary
         run: |

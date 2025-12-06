@@ -219,6 +219,12 @@ def main():
         default="gemini-3-pro-preview",
         help="Gemini model to use (default: gemini-3-pro-preview)",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=5,
+        help="Maximum retry attempts for LaTeX validation (default: 5)",
+    )
 
     args = parser.parse_args()
 
@@ -238,7 +244,7 @@ def main():
     cli = CVMatcherCLI(config)
 
     try:
-        cli.run(args.job_description)
+        cli.run(args.job_description, max_retries=args.max_retries)
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         sys.exit(1)
