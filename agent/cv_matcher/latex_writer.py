@@ -249,9 +249,11 @@ class LaTeXWriter:
         if "mainbar" in adaptations:
             mainbar_content = LaTeXWriter._clean_content(adaptations["mainbar"])
 
+            # The pattern captures: \mainbar{ ... content ... } \makebody
+            # We need to preserve the closing brace before \makebody
             updated_cv = re.sub(
-                r"(\\mainbar\{)(.*?)(\\makebody)",
-                lambda m: m.group(1) + "\n" + mainbar_content + "\n\n" + m.group(3),
+                r"(\\mainbar\{)(.*?)(\}\s*\\makebody)",
+                lambda m: m.group(1) + "\n" + mainbar_content + "\n" + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
@@ -260,9 +262,11 @@ class LaTeXWriter:
         if "experiences" in adaptations:
             experiences_content = LaTeXWriter._clean_content(adaptations["experiences"])
 
+            # The experiences section is inside the second \mainbar{...}
+            # Preserve the closing brace before \makebody
             updated_cv = re.sub(
-                r"(\\section\{Experiences description\})(.*?)(\\makebody)",
-                lambda m: m.group(1) + "\n" + experiences_content + "\n\n" + m.group(3),
+                r"(\\section\{Experiences description\})(.*?)(\}\s*\\makebody)",
+                lambda m: m.group(1) + "\n" + experiences_content + "\n" + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
