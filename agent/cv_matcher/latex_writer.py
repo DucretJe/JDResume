@@ -73,12 +73,11 @@ class LaTeXWriter:
             except subprocess.TimeoutExpired:
                 return False, "LaTeX compilation timed out"
             except FileNotFoundError:
-                # xelatex not available - fall back to basic validation
-                print(
-                    "⚠️  xelatex not available, skipping compilation check",
-                    file=sys.stderr,
+                # xelatex not available - this is an error, not a skip
+                return False, (
+                    "xelatex not found. Install texlive-xetex to enable validation. "
+                    "Without validation, broken LaTeX files may be generated."
                 )
-                return True, ""
             except Exception as e:
                 return False, f"Compilation error: {str(e)}"
 

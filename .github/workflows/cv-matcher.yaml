@@ -38,6 +38,11 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
+      - name: Install TeX Live for validation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-fonts-extra
+
       - name: Install agent dependencies
         working-directory: agent
         run: uv sync
