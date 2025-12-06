@@ -34,12 +34,12 @@ class LaTeXWriter:
             with open(tex_file, "w", encoding="utf-8") as f:
                 f.write(latex_content)
 
-            # Copy required LaTeX files (class file, supporting files)
-            # Look for .cls, .sty files in the LaTeX directory
+            # Copy required LaTeX files (class file, supporting files, images)
+            # Look for .cls, .sty, and image files in the LaTeX directory
             latex_path = os.path.abspath(latex_dir)
             if os.path.exists(latex_path):
                 for filename in os.listdir(latex_path):
-                    if filename.endswith((".cls", ".sty")):
+                    if filename.endswith((".cls", ".sty", ".jpg", ".png", ".pdf", ".jpeg")):
                         src = os.path.join(latex_path, filename)
                         dst = os.path.join(tmpdir, filename)
                         try:
