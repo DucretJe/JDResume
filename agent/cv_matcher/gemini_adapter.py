@@ -54,7 +54,7 @@ CV_ADAPTATION_SCHEMA = {
 class GeminiAdapter:
     """Adapter for using Gemini API to adapt CV content."""
 
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-pro"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3-pro-preview"):
         """
         Initialize the Gemini adapter.
 

@@ -12,6 +12,16 @@ on:
         description: 'Optional: Path to job description file in repo (leave empty if using direct text)'
         required: false
         type: string
+      model:
+        description: 'Gemini model to use'
+        required: false
+        type: choice
+        default: 'gemini-3-pro-preview'
+        options:
+          - 'gemini-3-pro-preview'
+          - 'gemini-2.5-pro'
+          - 'gemini-2.5-flash'
+          - 'gemini-2.0-flash'
 
 jobs:
   adapt-and-compile:
@@ -51,12 +61,12 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "🤖 Running CV Matcher Agent..."
+          echo "🤖 Running CV Matcher Agent with model: ${{ inputs.model }}"
           uv run cv-matcher \
             --cv ../LaTeX/resume.tex \
             --job-description /tmp/job_description.txt \
             --output ../LaTeX/resume_adapted.tex \
-            --model gemini-3-pro-preview
+            --model ${{ inputs.model }}
 
       - name: Show adaptation summary
         run: |
