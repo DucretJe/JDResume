@@ -21,15 +21,23 @@ CV_ADAPTATION_SCHEMA = {
         },
         "mainbar": {
             "type": "string",
-            "description": "The adapted work history and education section in LaTeX format",
+            "description": (
+                "PAGE 1 CONTENT: Work history with job TITLES ONLY (using \\job command), "
+                "Education section, Achievements, General Skills tags, and Wheel Chart. "
+                "This is the SUMMARY page - NO detailed job descriptions here."
+            ),
         },
         "experiences": {
             "type": "string",
-            "description": "The adapted detailed experiences section in LaTeX format",
+            "description": (
+                "PAGE 2 CONTENT: DETAILED job descriptions with bullet points for each role. "
+                "Uses \\subsection for each job title followed by detailed accomplishments. "
+                "This is separate from mainbar - contains the DETAILS, not the summary."
+            ),
         },
         "general_skills": {
             "type": "string",
-            "description": "The adapted general skills tags in LaTeX format",
+            "description": "The adapted general skills tags in LaTeX format (\\tag commands)",
         },
         "highlightbar": {
             "type": "string",

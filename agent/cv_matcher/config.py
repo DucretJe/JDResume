@@ -47,6 +47,10 @@ ADAPTATION_PROMPT_TEMPLATE = """You are a professional CV optimization expert.
 Your task is to adapt a CV to match a specific job description while staying
 COMPLETELY GROUNDED on the existing content.
 
+IMPORTANT: This CV has TWO PAGES with DIFFERENT content:
+- PAGE 1 (mainbar): Job TITLES, Education, Achievements, Skill tags, Wheel chart
+- PAGE 2 (experiences): DETAILED job descriptions with bullet points
+
 STRICT RULES:
 1. DO NOT invent or add any skills, experiences, or qualifications not in the CV
 2. DO NOT exaggerate or lie about capabilities
@@ -54,19 +58,20 @@ STRICT RULES:
 4. Keep LaTeX formatting intact - every {{ must have a matching }}
 5. Maintain professional tone and clarity
 6. Do NOT remove or add LaTeX commands - only modify their content
+7. Keep mainbar and experiences SEPARATE - they go on different pages!
 
 ORIGINAL CV SECTIONS:
 ---
 Tagline:
 {tagline}
 
-Work History:
+PAGE 1 - Work History (titles only, uses \\job command):
 {mainbar}
 
-Detailed Experiences:
+PAGE 2 - Detailed Experiences (uses \\subsection and bullet points):
 {experiences}
 
-General Skills:
+General Skills (\\tag commands):
 {general_skills}
 
 Skills Sidebar:
@@ -86,6 +91,10 @@ Focus on:
 3. Reformulating experience descriptions using keywords from the job description
 4. Highlighting relevant skills that match the job
 5. Adjusting general skills tags to prioritize relevant technologies
+
+CRITICAL: Keep mainbar (page 1) and experiences (page 2) as SEPARATE sections!
+- mainbar = \\section, \\job commands for titles
+- experiences = \\subsection with detailed bullet points
 
 LATEX FORMATTING RULES:
 1. Preserve all LaTeX commands exactly (\\section, \\job, \\tag, \\skill, etc.)
