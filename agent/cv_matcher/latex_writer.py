@@ -2,10 +2,11 @@
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 
 class LaTeXWriter:
@@ -78,6 +79,76 @@ class LaTeXWriter:
                     "xelatex not found. Install texlive-xetex to enable validation. "
                     "Without validation, broken LaTeX files may be generated."
                 )
+            except Exception as e:
+                return False, f"Compilation error: {str(e)}"
+
+    @staticmethod
+    def compile_to_pdf(
+        tex_path: str, output_pdf_path: str, latex_dir: str = "../LaTeX", timeout: int = 60
+    ) -> Tuple[bool, str]:
+        """
+        Compile a LaTeX file to PDF.
+
+        Args:
+            tex_path: Path to the .tex file to compile
+            output_pdf_path: Path where the output PDF should be saved
+            latex_dir: Directory containing LaTeX class files and dependencies
+            timeout: Compilation timeout in seconds
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Copy the tex file to temp directory
+            tex_filename = os.path.basename(tex_path)
+            tex_copy = os.path.join(tmpdir, tex_filename)
+            shutil.copy2(tex_path, tex_copy)
+
+            # Copy required LaTeX files (class file, supporting files, images)
+            latex_path = os.path.abspath(latex_dir)
+            if os.path.exists(latex_path):
+                for filename in os.listdir(latex_path):
+                    if filename.endswith((".cls", ".sty", ".jpg", ".png", ".pdf", ".jpeg")):
+                        src = os.path.join(latex_path, filename)
+                        dst = os.path.join(tmpdir, filename)
+                        try:
+                            shutil.copy2(src, dst)
+                        except Exception:
+                            pass
+
+            try:
+                # Run xelatex to produce PDF
+                result = subprocess.run(
+                    [
+                        "xelatex",
+                        "-interaction=nonstopmode",
+                        "-halt-on-error",
+                        tex_filename,
+                    ],
+                    cwd=tmpdir,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+
+                if result.returncode != 0:
+                    full_error = "\n".join(result.stdout.split("\n")[-40:])
+                    return False, f"LaTeX compilation failed:\n{full_error}"
+
+                # Copy the generated PDF to the output path
+                pdf_filename = tex_filename.replace(".tex", ".pdf")
+                pdf_path = os.path.join(tmpdir, pdf_filename)
+
+                if os.path.exists(pdf_path):
+                    shutil.copy2(pdf_path, output_pdf_path)
+                    return True, ""
+                else:
+                    return False, "PDF file was not generated"
+
+            except subprocess.TimeoutExpired:
+                return False, "LaTeX compilation timed out"
+            except FileNotFoundError:
+                return False, "xelatex not found. Install texlive-xetex."
             except Exception as e:
                 return False, f"Compilation error: {str(e)}"
 

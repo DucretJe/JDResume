@@ -3,29 +3,37 @@
 import argparse
 import os
 import sys
+from typing import Optional
 
 from cv_matcher.config import AgentConfig
 from cv_matcher.gemini_adapter import GeminiAdapter
 from cv_matcher.latex_parser import LaTeXParser
 from cv_matcher.latex_writer import LaTeXWriter
+from cv_matcher.pdf_validator import PDFValidator
 
 
 class CVMatcherCLI:
     """Command-line interface for the CV Matcher Agent."""
 
-    def __init__(self, config: AgentConfig):
+    def __init__(self, config: AgentConfig, original_pdf: Optional[str] = None):
         """
         Initialize the CLI.
 
         Args:
             config: Agent configuration
+            original_pdf: Path to the original CV PDF for visual validation
         """
         self.config = config
+        self.original_pdf = original_pdf
         self.parser = LaTeXParser()
         self.adapter = GeminiAdapter(
             api_key=config.api_key, model_name=config.model_name
         )
         self.writer = LaTeXWriter()
+        # Initialize PDF validator if original PDF is provided
+        self.pdf_validator = (
+            PDFValidator(api_key=config.api_key) if original_pdf else None
+        )
 
     def run(self, job_description_input: str, max_retries: int = 3) -> None:
         """
@@ -93,9 +101,50 @@ class CVMatcherCLI:
             try:
                 adapted_cv = self.writer.apply_adaptations(original_cv, adaptations)
 
-                # Validation and compilation passed!
+                # LaTeX compilation passed!
                 print("✅ LaTeX compilation successful!")
-                break
+
+                # Visual validation if original PDF is provided
+                if self.pdf_validator and self.original_pdf:
+                    print("🔍 Running visual PDF validation...")
+
+                    # Write the adapted .tex file temporarily
+                    self.writer.write_file(self.config.output_path, adapted_cv)
+
+                    # Compile to PDF for visual comparison
+                    adapted_pdf = self.config.output_path.replace(".tex", ".pdf")
+                    latex_dir = os.path.dirname(self.config.cv_path)
+
+                    print("📄 Compiling adapted CV to PDF...")
+                    compile_success, compile_error = LaTeXWriter.compile_to_pdf(
+                        self.config.output_path, adapted_pdf, latex_dir
+                    )
+
+                    if not compile_success:
+                        raise ValueError(f"PDF compilation failed: {compile_error}")
+
+                    # Run visual validation
+                    is_valid, explanation = self.pdf_validator.validate_adaptation(
+                        self.original_pdf, adapted_pdf
+                    )
+
+                    if is_valid:
+                        print(f"✅ Visual validation passed: {explanation}")
+                        # File is already written, we're done
+                        print(f"\n💾 Adapted CV saved to: {self.config.output_path}")
+                        print("\n✅ CV adaptation complete!")
+                        return
+                    else:
+                        # Clean up the invalid files
+                        if os.path.exists(self.config.output_path):
+                            os.remove(self.config.output_path)
+                        if os.path.exists(adapted_pdf):
+                            os.remove(adapted_pdf)
+
+                        # Treat visual validation failure as a validation error
+                        raise ValueError(f"Visual validation failed: {explanation}")
+                else:
+                    break
 
             except ValueError as e:
                 validation_error = str(e)
@@ -225,6 +274,12 @@ def main():
         default=5,
         help="Maximum retry attempts for LaTeX validation (default: 5)",
     )
+    parser.add_argument(
+        "--original-pdf",
+        type=str,
+        default=None,
+        help="Path to original CV PDF for visual validation (optional)",
+    )
 
     args = parser.parse_args()
 
@@ -241,7 +296,7 @@ def main():
         sys.exit(1)
 
     # Run the CLI
-    cli = CVMatcherCLI(config)
+    cli = CVMatcherCLI(config, original_pdf=args.original_pdf)
 
     try:
         cli.run(args.job_description, max_retries=args.max_retries)

@@ -38,10 +38,10 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
-      - name: Install TeX Live for validation
+      - name: Install TeX Live and poppler for validation
         run: |
           sudo apt-get update
-          sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-fonts-extra
+          sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-fonts-extra poppler-utils
 
       - name: Install agent dependencies
         working-directory: agent
@@ -50,6 +50,19 @@ jobs:
       - name: Download photo for LaTeX validation
         run: |
           wget https://media.githubusercontent.com/media/DucretJe/JDResume/main/LaTeX/photo.jpg -O ./LaTeX/picture.jpg
+
+      - name: Compile original CV to PDF (reference for visual validation)
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: ./LaTeX/resume.tex
+          latexmk_use_xelatex: true
+        env:
+          TEXINPUTS: "./LaTeX:"
+
+      - name: Save original PDF for visual comparison
+        run: |
+          mv resume.pdf ./LaTeX/original_cv.pdf
+          echo "📄 Original CV compiled: ./LaTeX/original_cv.pdf"
 
       - name: Create job description file
         run: |
@@ -76,7 +89,8 @@ jobs:
             --job-description /tmp/job_description.txt \
             --output ../LaTeX/resume_adapted.tex \
             --model ${{ inputs.model }} \
-            --max-retries 5
+            --max-retries 5 \
+            --original-pdf ../LaTeX/original_cv.pdf
 
       - name: Show adaptation summary
         run: |
