@@ -44,62 +44,60 @@ class AgentConfig:
 
 # Prompt template for Gemini
 ADAPTATION_PROMPT_TEMPLATE = """You are a professional CV optimization expert.
-Your task is to adapt a CV to match a specific job description while staying
-COMPLETELY GROUNDED on the existing content.
+Your task is to adapt a CV to match a specific job description.
 
-IMPORTANT: This CV has TWO PAGES with DIFFERENT content:
-- PAGE 1 (mainbar): Job TITLES, Education, Achievements, Skill tags, Wheel chart
-- PAGE 2 (experiences): DETAILED job descriptions with bullet points
+CRITICAL: You must PRESERVE the EXACT LaTeX structure. Only modify TEXT CONTENT.
+
+WHAT YOU CAN CHANGE:
+- Text inside commands (e.g., the words in \\job{{dates}}{{company}}{{title}})
+- Order of items (reorder jobs, skills, etc.)
+- Wording of descriptions and bullet points
+
+WHAT YOU MUST NOT CHANGE:
+- LaTeX commands (\\job, \\section, \\tag, \\subsection, \\skill, etc.)
+- Brace structure {{ and }}
+- Line break commands \\\\
+- Special formatting (\\vspace, \\smallskip, etc.)
+- The overall document structure
+
+THIS CV HAS TWO PAGES:
+- PAGE 1 (mainbar): Job TITLES with \\job command, Education, Achievements, \\tag skills
+- PAGE 2 (experiences): DETAILED descriptions with \\subsection and bullet points
 
 STRICT RULES:
-1. DO NOT invent or add any skills, experiences, or qualifications not in the CV
-2. DO NOT exaggerate or lie about capabilities
-3. ONLY reformulate, reorder, and highlight existing content
-4. Keep LaTeX formatting intact - every {{ must have a matching }}
-5. Maintain professional tone and clarity
-6. Do NOT remove or add LaTeX commands - only modify their content
-7. Keep mainbar and experiences SEPARATE - they go on different pages!
+1. DO NOT invent skills or experiences not in the original CV
+2. DO NOT add or remove LaTeX commands
+3. COPY the LaTeX structure EXACTLY from the original
+4. Only change the TEXT words, not the LaTeX syntax
+5. Keep mainbar and experiences as SEPARATE sections
 
 ORIGINAL CV SECTIONS:
 ---
 Tagline:
 {tagline}
 
-PAGE 1 - Work History (titles only, uses \\job command):
+PAGE 1 - mainbar (COPY THIS STRUCTURE EXACTLY, only change text):
 {mainbar}
 
-PAGE 2 - Detailed Experiences (uses \\subsection and bullet points):
+PAGE 2 - experiences (COPY THIS STRUCTURE EXACTLY, only change text):
 {experiences}
 
-General Skills (\\tag commands):
+General Skills:
 {general_skills}
 
 Skills Sidebar:
 {highlightbar}
 ---
 
-JOB DESCRIPTION:
+JOB DESCRIPTION TO MATCH:
 ---
 {job_description}
 ---
 
-TASK:
-Analyze the job description and adapt the CV sections to better match it.
-Focus on:
-1. Rewriting the tagline to highlight relevant experience for this role
-2. Reordering or emphasizing work experiences matching job requirements
-3. Reformulating experience descriptions using keywords from the job description
-4. Highlighting relevant skills that match the job
-5. Adjusting general skills tags to prioritize relevant technologies
+TASK: Adapt the CV by:
+1. Reformulating text to use keywords from the job description
+2. Reordering items to prioritize relevant experience
+3. Emphasizing skills that match the job requirements
 
-CRITICAL: Keep mainbar (page 1) and experiences (page 2) as SEPARATE sections!
-- mainbar = \\section, \\job commands for titles
-- experiences = \\subsection with detailed bullet points
-
-LATEX FORMATTING RULES:
-1. Preserve all LaTeX commands exactly (\\section, \\job, \\tag, \\skill, etc.)
-2. Every opening brace {{ must have a closing brace }}
-3. Use \\\\ for line breaks in LaTeX
-4. Special characters: use \\& for &, \\% for %, \\$ for $, \\# for #
-
-Provide adapted content for each section, keeping the original LaTeX structure."""
+Return each section with the EXACT SAME LaTeX structure as the original,
+with only the text content modified to better match the job description."""

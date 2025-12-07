@@ -17,35 +17,41 @@ CV_ADAPTATION_SCHEMA = {
     "properties": {
         "tagline": {
             "type": "string",
-            "description": "The adapted tagline/career summary in LaTeX format",
+            "description": "Adapted tagline text (just the text, preserve any LaTeX if present)",
         },
         "mainbar": {
             "type": "string",
             "description": (
-                "PAGE 1 CONTENT: Work history with job TITLES ONLY (using \\job command), "
-                "Education section, Achievements, General Skills tags, and Wheel Chart. "
-                "This is the SUMMARY page - NO detailed job descriptions here."
+                "PAGE 1: COPY the EXACT LaTeX structure from original. "
+                "Contains \\section, \\job, \\achievement, \\tag commands. "
+                "Only modify the TEXT inside commands, not the commands themselves."
             ),
         },
         "experiences": {
             "type": "string",
             "description": (
-                "PAGE 2 CONTENT: DETAILED job descriptions with bullet points for each role. "
-                "Uses \\subsection for each job title followed by detailed accomplishments. "
-                "This is separate from mainbar - contains the DETAILS, not the summary."
+                "PAGE 2: COPY the EXACT LaTeX structure from original. "
+                "Contains \\subsection and bullet points with \\\\. "
+                "Only modify the TEXT, not the LaTeX structure."
             ),
         },
         "general_skills": {
             "type": "string",
-            "description": "The adapted general skills tags in LaTeX format (\\tag commands)",
+            "description": (
+                "COPY the EXACT \\tag commands structure. "
+                "Only change the text inside \\tag{}, not the commands."
+            ),
         },
         "highlightbar": {
             "type": "string",
-            "description": "The adapted sidebar skills section in LaTeX format",
+            "description": (
+                "COPY the EXACT LaTeX structure from original sidebar. "
+                "Only modify text content, preserve all commands."
+            ),
         },
         "explanation": {
             "type": "string",
-            "description": "Brief explanation of changes made to adapt the CV",
+            "description": "Brief explanation of TEXT changes made (not structural changes)",
         },
     },
     "required": [
