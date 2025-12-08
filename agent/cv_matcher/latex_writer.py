@@ -65,8 +65,22 @@ class LaTeXWriter:
                 )
 
                 if result.returncode != 0:
-                    # Get the last 40 lines which usually contain the error context
-                    full_error = "\n".join(result.stdout.split("\n")[-40:])
+                    # Extract the actual error from the log
+                    lines = result.stdout.split("\n")
+                    error_lines = []
+
+                    # Look for lines starting with "!" which indicate errors
+                    for i, line in enumerate(lines):
+                        if line.startswith("!"):
+                            # Get error line and context (next 5 lines)
+                            error_lines.extend(lines[i : i + 6])
+                            break
+
+                    # If no "!" found, get last 30 lines
+                    if not error_lines:
+                        error_lines = lines[-30:]
+
+                    full_error = "\n".join(error_lines)
                     return False, f"LaTeX compilation failed:\n{full_error}"
 
                 return True, ""
@@ -245,6 +259,10 @@ class LaTeXWriter:
         # Characters that need escaping in LaTeX: & % $ #
         # We skip { } because they're structural
         # We skip _ because it's often in commands
+
+        # First, fix common Gemini mistakes:
+        # - \@ is not valid LaTeX - @ doesn't need escaping
+        content = content.replace("\\@", "@")
 
         # Use regex to find unescaped special chars
         # A char is unescaped if not preceded by odd number of backslashes
