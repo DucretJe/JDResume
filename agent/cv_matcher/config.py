@@ -60,26 +60,40 @@ WHAT YOU MUST NOT CHANGE:
 - Special formatting (\\vspace, \\smallskip, etc.)
 - The overall document structure
 
-THIS CV HAS TWO PAGES:
-- PAGE 1 (mainbar): Job TITLES with \\job command, Education, Achievements, \\tag skills
-- PAGE 2 (experiences): DETAILED descriptions with \\subsection and bullet points
+=== THIS IS A 2-PAGE CV - PAGES MUST BE DIFFERENT ===
+
+PAGE 1 = "mainbar" field:
+- \\section{{Work history}} with \\job{{dates}}{{company}}{{title}} - SHORT summaries only
+- \\section{{Education}} with \\job commands
+- \\section{{Achievements, honours and awards}} with \\achievement commands
+- \\section{{General Skills}} with \\tag{{skill}} commands
+- \\section{{Wheel Chart}}
+- NO detailed bullet points here - just job titles and dates!
+
+PAGE 2 = "experiences" field:
+- \\section{{Experiences description}}
+- \\subsection{{Company Name}} for each company
+- DETAILED bullet points with \\\\ showing responsibilities
+- This is where job DESCRIPTIONS go (not in mainbar!)
 
 STRICT RULES:
 1. DO NOT invent skills or experiences not in the original CV
 2. DO NOT add or remove LaTeX commands
 3. COPY the LaTeX structure EXACTLY from the original
 4. Only change the TEXT words, not the LaTeX syntax
-5. Keep mainbar and experiences as SEPARATE sections
+5. mainbar = summaries (job titles), experiences = detailed descriptions
+6. NEVER put detailed job descriptions in mainbar
+7. NEVER put \\job commands in experiences
 
 ORIGINAL CV SECTIONS:
 ---
 Tagline:
 {tagline}
 
-PAGE 1 - mainbar (COPY THIS STRUCTURE EXACTLY, only change text):
+PAGE 1 - mainbar (SHORT summaries with \\job commands):
 {mainbar}
 
-PAGE 2 - experiences (COPY THIS STRUCTURE EXACTLY, only change text):
+PAGE 2 - experiences (DETAILED descriptions with \\subsection and bullets):
 {experiences}
 
 General Skills:
@@ -100,4 +114,6 @@ TASK: Adapt the CV by:
 3. Emphasizing skills that match the job requirements
 
 Return each section with the EXACT SAME LaTeX structure as the original,
-with only the text content modified to better match the job description."""
+with only the text content modified to better match the job description.
+
+REMEMBER: mainbar and experiences are SEPARATE PAGES - keep them distinct!"""

@@ -22,17 +22,23 @@ CV_ADAPTATION_SCHEMA = {
         "mainbar": {
             "type": "string",
             "description": (
-                "PAGE 1: COPY the EXACT LaTeX structure from original. "
-                "Contains \\section, \\job, \\achievement, \\tag commands. "
-                "Only modify the TEXT inside commands, not the commands themselves."
+                "PAGE 1 CONTENT - SHORT SUMMARIES ONLY! "
+                "Contains: \\section{Work history} with \\job{dates}{company}{title}, "
+                "\\section{Education}, \\section{Achievements} with \\achievement, "
+                "\\section{General Skills} with \\tag{}, \\section{Wheel Chart}. "
+                "NO detailed descriptions here - just job titles and dates! "
+                "COPY the EXACT LaTeX structure from original mainbar."
             ),
         },
         "experiences": {
             "type": "string",
             "description": (
-                "PAGE 2: COPY the EXACT LaTeX structure from original. "
-                "Contains \\subsection and bullet points with \\\\. "
-                "Only modify the TEXT, not the LaTeX structure."
+                "PAGE 2 CONTENT - DETAILED JOB DESCRIPTIONS! "
+                "Contains: \\section{Experiences description}, "
+                "\\subsection{Company Name} for each job, "
+                "DETAILED bullet points with \\\\ separators describing responsibilities. "
+                "This is DIFFERENT from mainbar - detailed descriptions go HERE. "
+                "COPY the EXACT LaTeX structure from original experiences."
             ),
         },
         "general_skills": {
@@ -156,23 +162,76 @@ class GeminiAdapter:
 
         sections_dict = LaTeXParser.sections_to_dict(sections)
 
-        # Identify the problematic section from error if not provided
-        if not failed_section:
-            for section_name in [
-                "tagline",
-                "mainbar",
-                "experiences",
-                "general_skills",
-                "highlightbar",
-            ]:
-                if section_name.lower() in validation_error.lower():
-                    failed_section = section_name
-                    break
+        # Check if this is a visual validation error (pages are the same)
+        is_visual_error = "both pages" in validation_error.lower() or "page count" in validation_error.lower()
 
-        # Build context about the specific section that failed
-        section_context = ""
-        if failed_section and failed_section in previous_adaptations:
-            section_context = f"""
+        if is_visual_error:
+            # Special prompt for visual validation errors
+            feedback_prompt = f"""Your CV adaptation failed VISUAL VALIDATION. The two pages of the PDF look identical or have wrong page count.
+
+CRITICAL ISSUE: "{validation_error}"
+
+THIS IS A 2-PAGE CV WITH DISTINCT CONTENT ON EACH PAGE:
+
+PAGE 1 (mainbar field) MUST CONTAIN:
+- \\section{{Work history}} with \\job commands (job title, company, dates - NO detailed descriptions)
+- \\section{{Education}} with \\job commands
+- \\section{{Achievements, honours and awards}} with \\achievement commands
+- \\section{{General Skills}} with \\tag commands
+- \\section{{Wheel Chart}}
+- These are SUMMARIES - short entries, no bullet points, no detailed descriptions
+
+PAGE 2 (experiences field) MUST CONTAIN:
+- \\section{{Experiences description}}
+- \\subsection{{Company Name}} for each job
+- DETAILED bullet points with \\\\ separators describing what you did at each job
+- This is the DETAILED DESCRIPTION section
+
+YOUR PREVIOUS ATTEMPT (which had identical pages):
+mainbar content preview:
+{previous_adaptations.get('mainbar', '')[:600]}...
+
+experiences content preview:
+{previous_adaptations.get('experiences', '')[:600]}...
+
+ORIGINAL CV STRUCTURE (COPY THIS STRUCTURE EXACTLY):
+
+ORIGINAL mainbar (PAGE 1 - summaries only):
+{sections_dict['mainbar'][:1200]}
+
+ORIGINAL experiences (PAGE 2 - detailed descriptions):
+{sections_dict['experiences'][:1200]}
+
+FIX INSTRUCTIONS:
+1. mainbar MUST be SHORT summaries (\\job commands with dates/titles, NOT descriptions)
+2. experiences MUST be DETAILED bullet points (\\subsection + bullet lists with \\\\)
+3. DO NOT put detailed descriptions in mainbar
+4. DO NOT put summary \\job commands in experiences
+5. The content on Page 1 and Page 2 must be VISUALLY DIFFERENT
+
+JOB DESCRIPTION for adaptation:
+{job_description[:800]}
+
+Return the COMPLETE corrected adaptation with mainbar and experiences clearly separated."""
+
+        else:
+            # Identify the problematic section from error if not provided
+            if not failed_section:
+                for section_name in [
+                    "tagline",
+                    "mainbar",
+                    "experiences",
+                    "general_skills",
+                    "highlightbar",
+                ]:
+                    if section_name.lower() in validation_error.lower():
+                        failed_section = section_name
+                        break
+
+            # Build context about the specific section that failed
+            section_context = ""
+            if failed_section and failed_section in previous_adaptations:
+                section_context = f"""
 THE PROBLEMATIC SECTION ({failed_section}):
 ---
 {previous_adaptations[failed_section][:1000]}
@@ -184,7 +243,7 @@ ORIGINAL {failed_section.upper()} (for reference):
 ---
 """
 
-        feedback_prompt = f"""Your previous CV adaptation failed LaTeX compilation.
+            feedback_prompt = f"""Your previous CV adaptation failed LaTeX compilation.
 
 COMPILATION ERROR:
 {validation_error}
