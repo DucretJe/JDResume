@@ -229,6 +229,60 @@ class LaTeXWriter:
         return True, ""
 
     @staticmethod
+    def _escape_latex_specials(content: str) -> str:
+        """
+        Escape special LaTeX characters that Gemini might forget to escape.
+
+        Only escapes characters that are NOT already escaped.
+        Preserves LaTeX commands (backslash followed by letters).
+
+        Args:
+            content: Content that may contain unescaped special characters
+
+        Returns:
+            Content with special characters properly escaped
+        """
+        # Characters that need escaping in LaTeX: & % $ #
+        # We skip { } because they're structural
+        # We skip _ because it's often in commands
+
+        # Use regex to find unescaped special chars
+        # A char is unescaped if not preceded by odd number of backslashes
+
+        def escape_if_needed(match: re.Match) -> str:
+            """Escape the character if not already escaped."""
+            full = match.group(0)
+            # Check how many backslashes precede
+            backslashes = len(full) - 1  # Everything except the special char
+            special_char = full[-1]
+
+            # If even number of backslashes (including 0), the char is unescaped
+            if backslashes % 2 == 0:
+                return full[:-1] + "\\" + special_char
+            else:
+                # Already escaped
+                return full
+
+        # Match: any number of backslashes followed by special char
+        # We process & % $ # separately
+        result = content
+
+        # Escape & (but not \&)
+        result = re.sub(r"(\\*)&", escape_if_needed, result)
+
+        # Escape % (but not \%)
+        result = re.sub(r"(\\*)%", escape_if_needed, result)
+
+        # Escape $ (but not \$) - be careful with $$ math mode
+        # Don't escape if it's $$ (display math)
+        result = re.sub(r"(\\*)\$(?!\$)", escape_if_needed, result)
+
+        # Escape # (but not \#)
+        result = re.sub(r"(\\*)#", escape_if_needed, result)
+
+        return result
+
+    @staticmethod
     def _clean_content(content: str, preserve_internal_whitespace: bool = True) -> str:
         """
         Clean adapted content from Gemini to prevent LaTeX compilation errors.
@@ -240,6 +294,9 @@ class LaTeXWriter:
         Returns:
             Cleaned content safe for LaTeX insertion
         """
+        # First, escape any unescaped special LaTeX characters
+        content = LaTeXWriter._escape_latex_specials(content)
+
         if preserve_internal_whitespace:
             # Only strip leading and trailing whitespace/newlines
             return content.strip()
