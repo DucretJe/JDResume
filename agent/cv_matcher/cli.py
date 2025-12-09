@@ -10,26 +10,44 @@ from cv_matcher.gemini_adapter import GeminiAdapter
 from cv_matcher.latex_parser import LaTeXParser
 from cv_matcher.latex_writer import LaTeXWriter
 from cv_matcher.pdf_validator import PDFValidator
+from cv_matcher.text_adapter import TextBasedAdapter, TextExtractor, LaTeXReconstructor
 
 
 class CVMatcherCLI:
     """Command-line interface for the CV Matcher Agent."""
 
-    def __init__(self, config: AgentConfig, original_pdf: Optional[str] = None):
+    def __init__(
+        self,
+        config: AgentConfig,
+        original_pdf: Optional[str] = None,
+        text_mode: bool = False,
+    ):
         """
         Initialize the CLI.
 
         Args:
             config: Agent configuration
             original_pdf: Path to the original CV PDF for visual validation
+            text_mode: Use text-based adaptation (safer, preserves LaTeX structure)
         """
         self.config = config
         self.original_pdf = original_pdf
+        self.text_mode = text_mode
         self.parser = LaTeXParser()
-        self.adapter = GeminiAdapter(
-            api_key=config.api_key, model_name=config.model_name
-        )
         self.writer = LaTeXWriter()
+
+        # Initialize appropriate adapter based on mode
+        if text_mode:
+            self.text_adapter = TextBasedAdapter(
+                api_key=config.api_key, model_name=config.model_name
+            )
+            self.text_extractor = TextExtractor()
+            self.reconstructor = LaTeXReconstructor()
+        else:
+            self.adapter = GeminiAdapter(
+                api_key=config.api_key, model_name=config.model_name
+            )
+
         # Initialize PDF validator if original PDF is provided
         self.pdf_validator = (
             PDFValidator(api_key=config.api_key) if original_pdf else None
@@ -38,6 +56,76 @@ class CVMatcherCLI:
     def run(self, job_description_input: str, max_retries: int = 3) -> None:
         """
         Main processing function to adapt CV to job description.
+
+        Args:
+            job_description_input: Job description text or path to file
+            max_retries: Maximum number of retry attempts if validation fails
+        """
+        if self.text_mode:
+            self.run_text_mode(job_description_input)
+        else:
+            self.run_legacy_mode(job_description_input, max_retries)
+
+    def run_text_mode(self, job_description_input: str) -> None:
+        """
+        Text-based adaptation mode that preserves LaTeX structure.
+
+        This mode:
+        1. Extracts only TEXT content from the CV (no LaTeX)
+        2. Sends text to Gemini for adaptation
+        3. Reconstructs LaTeX by inserting adapted text into original structure
+
+        The LaTeX structure is NEVER modified by Gemini, guaranteeing valid output.
+
+        Args:
+            job_description_input: Job description text or path to file
+        """
+        print("📄 Reading original CV...")
+        original_cv = self.parser.read_file(self.config.cv_path)
+
+        # Load job description
+        job_description = self._load_job_description(job_description_input)
+
+        print("🔍 Extracting text content from CV...")
+        print("   (LaTeX structure will be preserved exactly)")
+        extracted = self.text_extractor.extract_all(original_cv)
+
+        print(f"   Found {len(extracted.jobs)} jobs, {len(extracted.achievements)} achievements")
+        print(f"   Found {len(extracted.general_skills)} skill tags")
+        print(f"   Found {len(extracted.experiences)} experience sections")
+
+        print("\n🤖 Adapting text content with Gemini...")
+        print("   (Only text is sent to AI, not LaTeX)")
+
+        adaptations = self.text_adapter.adapt_cv(original_cv, job_description)
+
+        if "explanation" in adaptations:
+            print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
+
+        print("✏️  Reconstructing CV with adapted text...")
+        adapted_cv = self.reconstructor.apply_adaptations(
+            original_cv, adaptations, extracted
+        )
+
+        print("🔨 Validating LaTeX compilation...")
+        is_valid, error = LaTeXWriter._compile_latex(adapted_cv)
+
+        if not is_valid:
+            print(f"\n⚠️  Compilation failed: {error}", file=sys.stderr)
+            print("   This shouldn't happen in text mode - please report this bug.")
+            raise ValueError(f"LaTeX compilation error: {error}")
+
+        print("✅ LaTeX compilation successful!")
+
+        # Save the adapted CV
+        print(f"\n💾 Saving adapted CV to: {self.config.output_path}")
+        self.writer.write_file(self.config.output_path, adapted_cv)
+
+        print("\n✅ CV adaptation complete!")
+
+    def run_legacy_mode(self, job_description_input: str, max_retries: int = 3) -> None:
+        """
+        Legacy mode using full LaTeX adaptation with retry loop.
 
         Uses a feedback loop to automatically fix compilation errors:
         1. Generate adaptation with Gemini (structured output)
@@ -280,8 +368,22 @@ def main():
         default=None,
         help="Path to original CV PDF for visual validation (optional)",
     )
+    parser.add_argument(
+        "--text-mode",
+        action="store_true",
+        default=True,
+        help="Use text-based adaptation (safer, default). Gemini only sees text, not LaTeX.",
+    )
+    parser.add_argument(
+        "--legacy-mode",
+        action="store_true",
+        help="Use legacy LaTeX-based adaptation (less reliable).",
+    )
 
     args = parser.parse_args()
+
+    # Determine mode
+    text_mode = not args.legacy_mode  # Text mode by default unless legacy is specified
 
     # Create configuration
     try:
@@ -296,7 +398,12 @@ def main():
         sys.exit(1)
 
     # Run the CLI
-    cli = CVMatcherCLI(config, original_pdf=args.original_pdf)
+    if text_mode:
+        print("🔧 Using TEXT MODE (safer, preserves LaTeX structure)")
+    else:
+        print("🔧 Using LEGACY MODE (LaTeX-based, may have errors)")
+
+    cli = CVMatcherCLI(config, original_pdf=args.original_pdf, text_mode=text_mode)
 
     try:
         cli.run(args.job_description, max_retries=args.max_retries)
