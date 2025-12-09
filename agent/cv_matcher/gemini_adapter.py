@@ -165,7 +165,41 @@ class GeminiAdapter:
         # Check if this is a visual validation error (pages are the same)
         is_visual_error = "both pages" in validation_error.lower() or "page count" in validation_error.lower()
 
-        if is_visual_error:
+        # Check if this is a pgfmath error (wheel chart or graphical element issue)
+        is_pgfmath_error = "pgfmath" in validation_error.lower() or "pgf@" in validation_error.lower()
+
+        if is_pgfmath_error:
+            # Special prompt for pgfmath errors (usually Wheel Chart issues)
+            feedback_prompt = f"""Your CV adaptation failed with a PGFMATH ERROR. This is a graphical calculation error.
+
+COMPILATION ERROR:
+{validation_error}
+
+THIS ERROR IS USUALLY CAUSED BY:
+1. MODIFYING THE WHEEL CHART - DO NOT modify \\wheelchart commands or their numeric values
+2. Using text where numbers are expected
+3. Breaking the structure of graphical elements
+
+THE WHEEL CHART IN mainbar MUST BE PRESERVED EXACTLY:
+- \\wheelchart{{...}} commands should NOT be modified
+- The numeric values (like 6/8em/...) must stay as numbers
+- Only modify TEXT labels if needed, not structure
+
+YOUR PREVIOUS mainbar (check for Wheel Chart modifications):
+{previous_adaptations.get('mainbar', '')[:1500]}
+
+ORIGINAL mainbar (COPY THE WHEEL CHART EXACTLY):
+{sections_dict['mainbar']}
+
+FIX INSTRUCTIONS:
+1. COPY the \\section{{Wheel Chart}} and \\wheelchart commands EXACTLY from the original
+2. DO NOT change any numeric values in \\wheelchart
+3. You may change text labels but preserve the exact command structure
+4. Make sure all special characters are escaped (& -> \\&, % -> \\%, etc.)
+
+Return the COMPLETE corrected adaptation with the Wheel Chart preserved exactly as in the original."""
+
+        elif is_visual_error:
             # Special prompt for visual validation errors
             feedback_prompt = f"""Your CV adaptation failed VISUAL VALIDATION. The two pages of the PDF look identical or have wrong page count.
 

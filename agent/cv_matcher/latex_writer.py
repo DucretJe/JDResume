@@ -364,7 +364,7 @@ class LaTeXWriter:
 
         # Replace tagline
         if "tagline" in adaptations:
-            tagline_content = adaptations["tagline"].strip()
+            tagline_content = LaTeXWriter._clean_content(adaptations["tagline"])
             # Remove any LaTeX command prefix if Gemini accidentally included it
             tagline_content = re.sub(
                 r"^\\tagline\{(.+)\}$", r"\1", tagline_content, flags=re.DOTALL
