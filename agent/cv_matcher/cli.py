@@ -99,6 +99,32 @@ class CVMatcherCLI:
 
         adaptations = self.text_adapter.adapt_cv(original_cv, job_description)
 
+        # Validate that adaptations are not empty
+        if not adaptations.get("job_titles"):
+            print("⚠️  Warning: job_titles is empty, using originals", file=sys.stderr)
+            adaptations["job_titles"] = [job.title for job in extracted.jobs]
+
+        if not adaptations.get("achievements"):
+            print("⚠️  Warning: achievements is empty, using originals", file=sys.stderr)
+            adaptations["achievements"] = extracted.achievements
+
+        if not adaptations.get("general_skills"):
+            print("⚠️  Warning: general_skills is empty, using originals", file=sys.stderr)
+            adaptations["general_skills"] = extracted.general_skills
+
+        if not adaptations.get("experience_bullets"):
+            print("⚠️  Warning: experience_bullets is empty, using originals", file=sys.stderr)
+            adaptations["experience_bullets"] = [
+                {"company": exp.company, "bullets": exp.bullets}
+                for exp in extracted.experiences
+            ]
+
+        # Show stats
+        print(f"   Adapted {len(adaptations.get('job_titles', []))} job titles")
+        print(f"   Adapted {len(adaptations.get('achievements', []))} achievements")
+        print(f"   Adapted {len(adaptations.get('general_skills', []))} skills")
+        print(f"   Adapted {len(adaptations.get('experience_bullets', []))} experience sections")
+
         if "explanation" in adaptations:
             print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
 

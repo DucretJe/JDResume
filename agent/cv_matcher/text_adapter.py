@@ -227,35 +227,37 @@ TEXT_ADAPTATION_SCHEMA = {
     "properties": {
         "tagline": {
             "type": "string",
-            "description": "Adapted tagline (plain text, no LaTeX)",
+            "description": "REQUIRED: Adapted tagline text (plain text, no LaTeX). Must not be empty.",
         },
         "job_titles": {
             "type": "array",
-            "description": "Adapted job titles in same order as original",
+            "description": "REQUIRED: List of adapted job titles. MUST have the same number of items as original. Do NOT return empty array!",
             "items": {"type": "string"},
         },
         "achievements": {
             "type": "array",
-            "description": "Adapted achievement texts in same order",
+            "description": "REQUIRED: List of adapted achievements. MUST have the same number of items as original. Do NOT return empty array!",
             "items": {"type": "string"},
         },
         "general_skills": {
             "type": "array",
-            "description": "Adapted skill tags (same count as original!)",
+            "description": "REQUIRED: List of adapted skill tags. MUST have the same count as original. Do NOT return empty array!",
             "items": {"type": "string"},
         },
         "experience_bullets": {
             "type": "array",
-            "description": "For each experience, list of adapted bullet points",
+            "description": "REQUIRED: For each company, list of adapted bullet points. MUST include all companies!",
             "items": {
                 "type": "object",
                 "properties": {
-                    "company": {"type": "string"},
+                    "company": {"type": "string", "description": "Company name (e.g. 'Evooq', 'CIC')"},
                     "bullets": {
                         "type": "array",
                         "items": {"type": "string"},
+                        "description": "List of adapted bullet points for this company",
                     },
                 },
+                "required": ["company", "bullets"],
             },
         },
         "explanation": {
@@ -329,47 +331,62 @@ class TextBasedAdapter:
             for bullet in exp.bullets:
                 experiences_text += f"    - {bullet}\n"
 
+        # Build explicit lists for the prompt
+        job_titles_list = [job.title for job in extracted.jobs]
+        achievements_list = extracted.achievements
+        skills_list = extracted.general_skills
+
         return f"""You are adapting a CV to match a job description.
 
-IMPORTANT: You must return the EXACT SAME NUMBER of items for each list.
-Do NOT add or remove items - only modify the TEXT.
+=== ORIGINAL CV CONTENT ===
 
-=== ORIGINAL CV TEXT ===
+TAGLINE (adapt this):
+"{extracted.tagline}"
 
-Tagline:
-{extracted.tagline}
+JOB TITLES (you MUST return exactly {len(job_titles_list)} titles):
+{json.dumps(job_titles_list, indent=2)}
 
-Job Positions (return {len(extracted.jobs)} titles in same order):
-{jobs_text}
+ACHIEVEMENTS (you MUST return exactly {len(achievements_list)} items):
+{json.dumps(achievements_list, indent=2)}
 
-Achievements (return {len(extracted.achievements)} items in same order):
-{achievements_text}
+GENERAL SKILLS (you MUST return exactly {len(skills_list)} skills):
+{json.dumps(skills_list, indent=2)}
 
-General Skills (return EXACTLY {len(extracted.general_skills)} tags):
-{skills_text}
-
-Experience Details (preserve company names, adapt bullet points):
+EXPERIENCE DETAILS (adapt the bullet points for each company):
 {experiences_text}
 
-=== JOB DESCRIPTION ===
+=== TARGET JOB DESCRIPTION ===
 {job_description}
 
-=== INSTRUCTIONS ===
-1. Adapt the TAGLINE to emphasize relevant skills for this job
-2. You may slightly modify JOB TITLES to better match (e.g., "SRE" -> "Cloud Engineer")
-3. Rephrase ACHIEVEMENTS to highlight relevant qualities
-4. Reorder and rephrase GENERAL SKILLS to prioritize job-relevant ones
-5. Adapt EXPERIENCE BULLETS to use keywords from the job description
+=== YOUR TASK ===
 
-CRITICAL RULES:
-- Return EXACTLY {len(extracted.jobs)} job titles
-- Return EXACTLY {len(extracted.achievements)} achievements
-- Return EXACTLY {len(extracted.general_skills)} general skills
-- Keep the SAME NUMBER of bullet points for each experience
-- Do NOT invent new experiences or skills not in the original
-- Use PLAIN TEXT only - no LaTeX commands, no special characters like & or %
+Return a JSON object with these REQUIRED fields:
 
-Return your adaptation as JSON."""
+1. "tagline": Adapt the tagline to emphasize relevant skills
+2. "job_titles": Return {len(job_titles_list)} adapted job titles (same order)
+3. "achievements": Return {len(achievements_list)} adapted achievements (same order)
+4. "general_skills": Return {len(skills_list)} adapted skills (can reorder)
+5. "experience_bullets": For EACH company, return adapted bullet points
+6. "explanation": Brief summary of changes
+
+EXAMPLE OUTPUT STRUCTURE:
+{{
+  "tagline": "Adapted tagline here...",
+  "job_titles": ["Title 1", "Title 2", "Title 3"],
+  "achievements": ["Achievement 1", "Achievement 2"],
+  "general_skills": ["Skill1", "Skill2", "Skill3", ...],
+  "experience_bullets": [
+    {{"company": "Evooq", "bullets": ["Bullet 1", "Bullet 2", ...]}},
+    {{"company": "CIC (Credit Analyst)", "bullets": ["Bullet 1", ...]}},
+    {{"company": "CIC (Financial Counsellor)", "bullets": ["Bullet 1", ...]}}
+  ],
+  "explanation": "Summary of changes..."
+}}
+
+CRITICAL:
+- Do NOT return empty arrays!
+- Return EXACTLY the number of items specified
+- Use plain text only, no special characters like & or %"""
 
 
 class LaTeXReconstructor:
