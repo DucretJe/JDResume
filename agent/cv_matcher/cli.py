@@ -128,6 +128,17 @@ class CVMatcherCLI:
         if "explanation" in adaptations:
             print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
 
+        # Show diff between original and adapted content
+        print("📊 Comparing original vs adapted content:")
+        self._show_diff("tagline", extracted.tagline, adaptations.get("tagline", ""))
+        self._show_diff(
+            "job_titles",
+            [j.title for j in extracted.jobs],
+            adaptations.get("job_titles", []),
+        )
+        self._show_diff("achievements", extracted.achievements, adaptations.get("achievements", []))
+        self._show_diff("general_skills", extracted.general_skills, adaptations.get("general_skills", []))
+
         print("✏️  Reconstructing CV with adapted text...")
         adapted_cv = self.reconstructor.apply_adaptations(
             original_cv, adaptations, extracted
@@ -326,6 +337,35 @@ class CVMatcherCLI:
             return "experiences"
 
         return None
+
+    @staticmethod
+    def _show_diff(field_name: str, original: any, adapted: any) -> None:
+        """Show difference between original and adapted content."""
+        def normalize(text: str) -> str:
+            """Normalize text for comparison."""
+            return " ".join(str(text).lower().split())
+
+        if isinstance(original, list) and isinstance(adapted, list):
+            # Compare lists
+            changes = 0
+            for i, (orig, adap) in enumerate(zip(original, adapted)):
+                if normalize(orig) != normalize(adap):
+                    changes += 1
+            if changes > 0:
+                print(f"   ✅ {field_name}: {changes}/{len(original)} items changed")
+            else:
+                print(f"   ⚪ {field_name}: no changes")
+        else:
+            # Compare strings
+            if normalize(original) != normalize(adapted):
+                print(f"   ✅ {field_name}: changed")
+                # Show first 100 chars of each
+                orig_preview = str(original)[:80].replace("\n", " ")
+                adap_preview = str(adapted)[:80].replace("\n", " ")
+                print(f"      - Original: {orig_preview}...")
+                print(f"      + Adapted:  {adap_preview}...")
+            else:
+                print(f"   ⚪ {field_name}: no changes")
 
     @staticmethod
     def _load_job_description(input_str: str) -> str:

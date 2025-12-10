@@ -192,15 +192,18 @@ class TextExtractor:
     def extract_all(self, cv_content: str) -> ExtractedCV:
         """Extract all text content from CV."""
         # Split into highlightbar and mainbar sections
+        # More flexible regex that handles nested braces
         highlightbar_match = re.search(
-            r"\\highlightbar\{(.*?)\n\}",
+            r"\\highlightbar\{(.*?)\n\}\s*\\mainbar",
             cv_content,
             re.DOTALL
         )
         highlightbar = highlightbar_match.group(1) if highlightbar_match else ""
 
+        # Match mainbar content - look for content between \mainbar{ and }\makebody
+        # Need to handle nested braces properly
         mainbar_match = re.search(
-            r"\\mainbar\{(.*?)\}\\makebody",
+            r"\\mainbar\{(.*?)\}\s*\\makebody",
             cv_content,
             re.DOTALL
         )
