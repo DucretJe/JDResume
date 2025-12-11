@@ -462,47 +462,74 @@ class LaTeXReconstructor:
                     lines.append(" ".join(current_line))
                 new_tagline = "\\\\ ".join(lines)
 
+            # Use regex to match tagline with any content
             result = re.sub(
-                r"\\tagline\{[^}]+\}",
+                r"\\tagline\{.*?\}",
                 f"\\\\tagline{{{new_tagline}}}",
                 result,
                 flags=re.DOTALL
             )
 
-        # 2. Replace job titles (only the title part, preserve dates and company)
+        # 2. Replace job titles using regex for flexibility with whitespace
         if "job_titles" in adaptations:
             job_titles = adaptations["job_titles"]
+            job_replacements = 0
             for i, (orig_job, new_title) in enumerate(zip(extracted.jobs, job_titles)):
                 if i < len(job_titles):
                     escaped_title = self.safe_escape(new_title)
-                    # Find and replace only the title in \job{dates}{company}{title}
-                    pattern = re.escape(f"\\job{{{orig_job.dates}}}\n        {{{orig_job.company}}}\n        {{{orig_job.title}}}")
-                    replacement = f"\\\\job{{{orig_job.dates}}}\n        {{{orig_job.company}}}\n        {{{escaped_title}}}"
-                    result = result.replace(
-                        f"\\job{{{orig_job.dates}}}\n        {{{orig_job.company}}}\n        {{{orig_job.title}}}",
-                        f"\\job{{{orig_job.dates}}}\n        {{{orig_job.company}}}\n        {{{escaped_title}}}"
+                    # Use regex to match job with flexible whitespace
+                    # Match: \job{dates}{company}{title} with any whitespace between
+                    pattern = (
+                        r"\\job\{" + re.escape(orig_job.dates) + r"\}\s*"
+                        r"\{" + re.escape(orig_job.company) + r"\}\s*"
+                        r"\{" + re.escape(orig_job.title) + r"\}"
                     )
+                    replacement = (
+                        f"\\\\job{{{orig_job.dates}}}\n"
+                        f"        {{{orig_job.company}}}\n"
+                        f"        {{{escaped_title}}}"
+                    )
+                    new_result, n = re.subn(pattern, replacement, result)
+                    if n > 0:
+                        job_replacements += n
+                        result = new_result
+                    else:
+                        print(f"   ⚠️ Could not find job: {orig_job.title}", file=sys.stderr)
+            print(f"   📝 Replaced {job_replacements} job titles", file=sys.stderr)
 
-        # 3. Replace achievements
+        # 3. Replace achievements using regex
         if "achievements" in adaptations:
+            ach_replacements = 0
             for orig_ach, new_ach in zip(extracted.achievements, adaptations["achievements"]):
                 escaped_ach = self.safe_escape(new_ach)
-                result = result.replace(
-                    f"\\achievement{{{orig_ach}}}",
-                    f"\\achievement{{{escaped_ach}}}"
-                )
+                pattern = r"\\achievement\{" + re.escape(orig_ach) + r"\}"
+                replacement = f"\\\\achievement{{{escaped_ach}}}"
+                new_result, n = re.subn(pattern, replacement, result)
+                if n > 0:
+                    ach_replacements += n
+                    result = new_result
+                else:
+                    print(f"   ⚠️ Could not find achievement: {orig_ach[:50]}...", file=sys.stderr)
+            print(f"   📝 Replaced {ach_replacements} achievements", file=sys.stderr)
 
-        # 4. Replace general skills tags
+        # 4. Replace general skills tags using regex
         if "general_skills" in adaptations:
+            tag_replacements = 0
             for orig_tag, new_tag in zip(extracted.general_skills, adaptations["general_skills"]):
                 escaped_tag = self.safe_escape(new_tag)
-                result = result.replace(
-                    f"\\tag{{{orig_tag}}}",
-                    f"\\tag{{{escaped_tag}}}"
-                )
+                pattern = r"\\tag\{" + re.escape(orig_tag) + r"\}"
+                replacement = f"\\\\tag{{{escaped_tag}}}"
+                new_result, n = re.subn(pattern, replacement, result)
+                if n > 0:
+                    tag_replacements += n
+                    result = new_result
+                else:
+                    print(f"   ⚠️ Could not find tag: {orig_tag}", file=sys.stderr)
+            print(f"   📝 Replaced {tag_replacements} skill tags", file=sys.stderr)
 
-        # 5. Replace experience bullets
+        # 5. Replace experience bullets using regex
         if "experience_bullets" in adaptations:
+            exp_replacements = 0
             for exp_data in adaptations["experience_bullets"]:
                 company = exp_data.get("company", "")
                 new_bullets = exp_data.get("bullets", [])
@@ -515,13 +542,32 @@ class LaTeXReconstructor:
                         break
 
                 if orig_exp and new_bullets:
-                    # Build original bullet text
-                    orig_bullet_text = "\\\\\n    ".join(orig_exp.bullets) + "\\\\"
+                    # Use regex to find the subsection and replace bullet content
+                    # First, escape the company name for regex
+                    escaped_company = re.escape(orig_exp.company)
 
-                    # Build new bullet text
-                    escaped_bullets = [self.safe_escape(b) for b in new_bullets]
-                    new_bullet_text = "\\\\\n    ".join(escaped_bullets) + "\\\\"
+                    # Find the subsection pattern and capture its content
+                    subsection_pattern = (
+                        r"(\\subsection\{" + escaped_company + r"\})"
+                        r"(.*?)"
+                        r"(?=\\subsection|\\vspace\{5mm\}\s*\\subsection|\}\s*\\makebody)"
+                    )
 
-                    result = result.replace(orig_bullet_text, new_bullet_text)
+                    def replace_subsection(match):
+                        subsection_header = match.group(1)
+                        # Build new content with bullets
+                        escaped_bullets = [self.safe_escape(b) for b in new_bullets]
+                        new_content = "\n    " + "\\\\\n    ".join(escaped_bullets) + "\\\\"
+                        return subsection_header + new_content
+
+                    new_result, n = re.subn(subsection_pattern, replace_subsection, result, flags=re.DOTALL)
+                    if n > 0:
+                        exp_replacements += n
+                        result = new_result
+                    else:
+                        print(f"   ⚠️ Could not find experience section: {orig_exp.company}", file=sys.stderr)
+                elif not orig_exp:
+                    print(f"   ⚠️ No matching experience found for: {company}", file=sys.stderr)
+            print(f"   📝 Replaced {exp_replacements} experience sections", file=sys.stderr)
 
         return result
