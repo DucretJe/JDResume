@@ -1,226 +1,106 @@
-"""Text-based CV adapter that separates structure from content.
+"""Text-based CV adapter using position-based replacement.
 
-This approach extracts only TEXT from LaTeX commands, sends text to Gemini,
-and reconstructs LaTeX with adapted text. The LaTeX structure is NEVER modified.
+This approach extracts text AND their positions from LaTeX commands,
+sends text to Gemini, then replaces by direct string slicing (no regex matching).
 """
 
 import json
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
 
 
 @dataclass
-class Job:
-    """Represents a job entry."""
+class TextSpan:
+    """A piece of text with its position in the original file."""
+    text: str
+    start: int  # Start position in original file
+    end: int    # End position in original file
+
+
+@dataclass
+class JobSpan:
+    """A job entry with position of the title."""
     dates: str
     company: str
-    title: str
-
-
-@dataclass
-class Skill:
-    """Represents a skill with rating."""
-    name: str
-    level: int
-
-
-@dataclass
-class Experience:
-    """Represents detailed experience description."""
-    company: str  # From \subsection{...@Company}
-    bullets: List[str]  # Lines separated by \\
+    title: TextSpan  # Only the title is replaceable
 
 
 @dataclass
 class ExtractedCV:
-    """All text content extracted from the CV."""
-    tagline: str = ""
-    jobs: List[Job] = field(default_factory=list)
-    education: List[Job] = field(default_factory=list)
-    achievements: List[str] = field(default_factory=list)
-    general_skills: List[str] = field(default_factory=list)  # From \tag{}
-    programming_skills: List[Skill] = field(default_factory=list)
-    os_skills: List[Skill] = field(default_factory=list)
-    software_skills: List[Skill] = field(default_factory=list)
-    language_skills: List[Skill] = field(default_factory=list)
-    hobbies: str = ""
-    experiences: List[Experience] = field(default_factory=list)
+    """All text content extracted from the CV with positions."""
+    tagline: TextSpan = None
+    jobs: List[JobSpan] = field(default_factory=list)
+    achievements: List[TextSpan] = field(default_factory=list)
+    general_skills: List[TextSpan] = field(default_factory=list)
 
 
-class TextExtractor:
-    """Extracts text content from LaTeX CV."""
+class PositionExtractor:
+    """Extracts text content with positions from LaTeX CV."""
 
-    @staticmethod
-    def extract_tagline(content: str) -> str:
-        """Extract tagline text."""
-        match = re.search(r"\\tagline\{(.+?)\}", content, re.DOTALL)
+    def extract_tagline(self, content: str) -> TextSpan:
+        """Extract tagline text with position."""
+        match = re.search(r"\\tagline\{([^}]+)\}", content, re.DOTALL)
         if match:
-            # Clean up line breaks
-            return match.group(1).replace("\\\\ ", " ").replace("\\\\", " ").strip()
-        return ""
+            return TextSpan(
+                text=match.group(1).strip(),
+                start=match.start(1),
+                end=match.end(1)
+            )
+        return None
 
-    @staticmethod
-    def extract_jobs(content: str, section_name: str = "Work history") -> List[Job]:
-        """Extract job entries from a section."""
+    def extract_jobs(self, content: str) -> List[JobSpan]:
+        """Extract job entries with title positions."""
         jobs = []
-        # Find the section
-        section_pattern = rf"\\section.*?\{{{section_name}\}}(.*?)(?=\\section|$)"
-        section_match = re.search(section_pattern, content, re.DOTALL)
-        if not section_match:
-            return jobs
-
-        section_content = section_match.group(1)
-
         # Find all \job{dates}{company}{title} entries
-        job_pattern = r"\\job\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}"
-        for match in re.finditer(job_pattern, section_content):
-            jobs.append(Job(
+        # We need to capture the position of the title specifically
+        pattern = r"\\job\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}"
+        for match in re.finditer(pattern, content):
+            jobs.append(JobSpan(
                 dates=match.group(1).strip(),
                 company=match.group(2).strip(),
-                title=match.group(3).strip()
+                title=TextSpan(
+                    text=match.group(3).strip(),
+                    start=match.start(3),
+                    end=match.end(3)
+                )
             ))
         return jobs
 
-    @staticmethod
-    def extract_achievements(content: str) -> List[str]:
-        """Extract achievement texts."""
+    def extract_achievements(self, content: str) -> List[TextSpan]:
+        """Extract achievement texts with positions."""
         achievements = []
         for match in re.finditer(r"\\achievement\{([^}]+)\}", content):
-            achievements.append(match.group(1).strip())
+            achievements.append(TextSpan(
+                text=match.group(1).strip(),
+                start=match.start(1),
+                end=match.end(1)
+            ))
         return achievements
 
-    @staticmethod
-    def extract_tags(content: str) -> List[str]:
-        """Extract general skill tags."""
+    def extract_tags(self, content: str) -> List[TextSpan]:
+        """Extract general skill tags with positions."""
         tags = []
-        # Find General Skills section
-        section_match = re.search(
-            r"\\section\{General Skills\}(.*?)(?=\\section|$)",
-            content,
-            re.DOTALL
-        )
-        if section_match:
-            section_content = section_match.group(1)
-            for match in re.finditer(r"\\tag\{([^}]+)\}", section_content):
-                tags.append(match.group(1).strip())
+        # Find all \tag{} commands
+        for match in re.finditer(r"\\tag\{([^}]+)\}", content):
+            tags.append(TextSpan(
+                text=match.group(1).strip(),
+                start=match.start(1),
+                end=match.end(1)
+            ))
         return tags
 
-    @staticmethod
-    def extract_skills(content: str, section_name: str) -> List[Skill]:
-        """Extract skills with ratings from a skillsection."""
-        skills = []
-        # Find the skillsection
-        # Handle escaped & in section names
-        escaped_name = section_name.replace("&", r"\\?&")
-        pattern = rf"\\skillsection\{{{escaped_name}\}}(.*?)(?=\\skillsection|\\vspace|\\bigskip|$)"
-        section_match = re.search(pattern, content, re.DOTALL)
-        if not section_match:
-            return skills
-
-        section_content = section_match.group(1)
-        for match in re.finditer(r"\\skill\{([^}]+)\}\{(\d+)\}", section_content):
-            skills.append(Skill(
-                name=match.group(1).strip(),
-                level=int(match.group(2))
-            ))
-        return skills
-
-    @staticmethod
-    def extract_hobbies(content: str) -> str:
-        """Extract hobbies text."""
-        pattern = r"\\skillsection\{Hobbies\}(.*?)(?=\\vspace|\\skillsection|$)"
-        match = re.search(pattern, content, re.DOTALL)
-        if match:
-            # Clean up the text
-            text = match.group(1).strip()
-            # Remove any remaining LaTeX commands
-            text = re.sub(r"\\[a-zA-Z]+\{[^}]*\}", "", text)
-            return text.strip()
-        return ""
-
-    @staticmethod
-    def extract_experiences(content: str) -> List[Experience]:
-        """Extract detailed experience descriptions from Page 2."""
-        experiences = []
-
-        # Find Experiences description section
-        section_match = re.search(
-            r"\\section\{Experiences description\}(.*?)(?=\}\\makebody|$)",
-            content,
-            re.DOTALL
-        )
-        if not section_match:
-            return experiences
-
-        section_content = section_match.group(1)
-
-        # Split by \subsection
-        subsections = re.split(r"\\subsection\{", section_content)
-        for subsection in subsections[1:]:  # Skip first empty part
-            # Extract company name (everything before })
-            company_match = re.match(r"([^}]+)\}", subsection)
-            if not company_match:
-                continue
-
-            company = company_match.group(1).strip()
-            rest = subsection[company_match.end():]
-
-            # Extract bullet points (separated by \\)
-            # Clean up the text first
-            rest = re.sub(r"\\vspace\{[^}]+\}", "", rest)  # Remove \vspace
-            rest = rest.strip()
-
-            # Split by \\ and clean
-            bullets = []
-            for line in re.split(r"\\\\", rest):
-                line = line.strip()
-                if line and not line.startswith("%"):
-                    # Clean up LaTeX artifacts
-                    line = line.replace("\\@", "@")
-                    bullets.append(line)
-
-            if bullets:
-                experiences.append(Experience(company=company, bullets=bullets))
-
-        return experiences
-
     def extract_all(self, cv_content: str) -> ExtractedCV:
-        """Extract all text content from CV."""
-        # Split into highlightbar and mainbar sections
-        # More flexible regex that handles nested braces
-        highlightbar_match = re.search(
-            r"\\highlightbar\{(.*?)\n\}\s*\\mainbar",
-            cv_content,
-            re.DOTALL
-        )
-        highlightbar = highlightbar_match.group(1) if highlightbar_match else ""
-
-        # Match mainbar content - look for content between \mainbar{ and }\makebody
-        # Need to handle nested braces properly
-        mainbar_match = re.search(
-            r"\\mainbar\{(.*?)\}\s*\\makebody",
-            cv_content,
-            re.DOTALL
-        )
-        mainbar = mainbar_match.group(1) if mainbar_match else ""
-
+        """Extract all text content with positions."""
         return ExtractedCV(
             tagline=self.extract_tagline(cv_content),
-            jobs=self.extract_jobs(mainbar, "Work history"),
-            education=self.extract_jobs(mainbar, "Education"),
-            achievements=self.extract_achievements(mainbar),
-            general_skills=self.extract_tags(mainbar),
-            programming_skills=self.extract_skills(highlightbar, "Programming"),
-            os_skills=self.extract_skills(highlightbar, "Operating Systems"),
-            software_skills=self.extract_skills(highlightbar, "Software & Tools"),
-            language_skills=self.extract_skills(highlightbar, "Languages"),
-            hobbies=self.extract_hobbies(highlightbar),
-            experiences=self.extract_experiences(cv_content),
+            jobs=self.extract_jobs(cv_content),
+            achievements=self.extract_achievements(cv_content),
+            general_skills=self.extract_tags(cv_content),
         )
 
 
@@ -230,45 +110,29 @@ TEXT_ADAPTATION_SCHEMA = {
     "properties": {
         "tagline": {
             "type": "string",
-            "description": "REQUIRED: Adapted tagline text (plain text, no LaTeX). Must not be empty.",
+            "description": "Adapted tagline text (plain text, no LaTeX).",
         },
         "job_titles": {
             "type": "array",
-            "description": "REQUIRED: List of adapted job titles. MUST have the same number of items as original. Do NOT return empty array!",
+            "description": "List of adapted job titles. MUST have same count as original.",
             "items": {"type": "string"},
         },
         "achievements": {
             "type": "array",
-            "description": "REQUIRED: List of adapted achievements. MUST have the same number of items as original. Do NOT return empty array!",
+            "description": "List of adapted achievements. MUST have same count as original.",
             "items": {"type": "string"},
         },
         "general_skills": {
             "type": "array",
-            "description": "REQUIRED: List of adapted skill tags. MUST have the same count as original. Do NOT return empty array!",
+            "description": "List of adapted skill tags. MUST have same count as original.",
             "items": {"type": "string"},
-        },
-        "experience_bullets": {
-            "type": "array",
-            "description": "REQUIRED: For each company, list of adapted bullet points. MUST include all companies!",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "company": {"type": "string", "description": "Company name (e.g. 'Evooq', 'CIC')"},
-                    "bullets": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of adapted bullet points for this company",
-                    },
-                },
-                "required": ["company", "bullets"],
-            },
         },
         "explanation": {
             "type": "string",
             "description": "Brief explanation of changes made",
         },
     },
-    "required": ["tagline", "job_titles", "achievements", "general_skills", "experience_bullets", "explanation"],
+    "required": ["tagline", "job_titles", "achievements", "general_skills", "explanation"],
 }
 
 
@@ -285,23 +149,11 @@ class TextBasedAdapter:
                 response_schema=TEXT_ADAPTATION_SCHEMA,
             ),
         )
-        self.extractor = TextExtractor()
+        self.extractor = PositionExtractor()
 
     def adapt_cv(self, cv_content: str, job_description: str) -> Dict:
-        """
-        Adapt CV text to match job description.
-
-        Args:
-            cv_content: Original CV LaTeX content
-            job_description: Target job description
-
-        Returns:
-            Dictionary with adapted text fields
-        """
-        # Extract text content
+        """Adapt CV text to match job description."""
         extracted = self.extractor.extract_all(cv_content)
-
-        # Build prompt with ONLY text
         prompt = self._build_prompt(extracted, job_description)
 
         print("📤 Sending text adaptation request to Gemini...", file=sys.stderr)
@@ -316,106 +168,54 @@ class TextBasedAdapter:
 
     def _build_prompt(self, extracted: ExtractedCV, job_description: str) -> str:
         """Build prompt with extracted text."""
-        jobs_text = "\n".join([
-            f"  {i+1}. {job.title} at {job.company} ({job.dates})"
-            for i, job in enumerate(extracted.jobs)
-        ])
-
-        achievements_text = "\n".join([
-            f"  {i+1}. {ach}"
-            for i, ach in enumerate(extracted.achievements)
-        ])
-
-        skills_text = ", ".join(extracted.general_skills)
-
-        experiences_text = ""
-        for exp in extracted.experiences:
-            experiences_text += f"\n  {exp.company}:\n"
-            for bullet in exp.bullets:
-                experiences_text += f"    - {bullet}\n"
-
-        # Build explicit lists for the prompt
-        job_titles_list = [job.title for job in extracted.jobs]
-        achievements_list = extracted.achievements
-        skills_list = extracted.general_skills
+        job_titles = [job.title.text for job in extracted.jobs]
+        achievements = [ach.text for ach in extracted.achievements]
+        skills = [tag.text for tag in extracted.general_skills]
+        tagline = extracted.tagline.text if extracted.tagline else ""
 
         return f"""You are adapting a CV to match a job description.
 
 === ORIGINAL CV CONTENT ===
 
-TAGLINE (adapt this):
-"{extracted.tagline}"
+TAGLINE:
+"{tagline}"
 
-JOB TITLES (you MUST return exactly {len(job_titles_list)} titles):
-{json.dumps(job_titles_list, indent=2)}
+JOB TITLES ({len(job_titles)} items - return exactly this many):
+{json.dumps(job_titles, indent=2)}
 
-ACHIEVEMENTS (you MUST return exactly {len(achievements_list)} items):
-{json.dumps(achievements_list, indent=2)}
+ACHIEVEMENTS ({len(achievements)} items - return exactly this many):
+{json.dumps(achievements, indent=2)}
 
-GENERAL SKILLS (you MUST return exactly {len(skills_list)} skills):
-{json.dumps(skills_list, indent=2)}
-
-EXPERIENCE DETAILS (adapt the bullet points for each company):
-{experiences_text}
+GENERAL SKILLS ({len(skills)} items - return exactly this many):
+{json.dumps(skills, indent=2)}
 
 === TARGET JOB DESCRIPTION ===
 {job_description}
 
 === YOUR TASK ===
 
-Return a JSON object with these REQUIRED fields:
+Adapt the CV content to better match the job description.
+Return a JSON with:
 
-1. "tagline": Adapt the tagline to emphasize relevant skills
-2. "job_titles": Return {len(job_titles_list)} adapted job titles (same order)
-3. "achievements": Return {len(achievements_list)} adapted achievements (same order)
-4. "general_skills": Return {len(skills_list)} adapted skills (can reorder)
-5. "experience_bullets": For EACH company, return adapted bullet points
-6. "explanation": Brief summary of changes
+1. "tagline": Adapted tagline emphasizing relevant skills
+2. "job_titles": {len(job_titles)} adapted job titles (same order as input)
+3. "achievements": {len(achievements)} adapted achievements (same order)
+4. "general_skills": {len(skills)} adapted skills
+5. "explanation": Brief summary of changes
 
-EXAMPLE OUTPUT STRUCTURE:
-{{
-  "tagline": "Adapted tagline here...",
-  "job_titles": ["Title 1", "Title 2", "Title 3"],
-  "achievements": ["Achievement 1", "Achievement 2"],
-  "general_skills": ["Skill1", "Skill2", "Skill3", ...],
-  "experience_bullets": [
-    {{"company": "Evooq", "bullets": ["Bullet 1", "Bullet 2", ...]}},
-    {{"company": "CIC (Credit Analyst)", "bullets": ["Bullet 1", ...]}},
-    {{"company": "CIC (Financial Counsellor)", "bullets": ["Bullet 1", ...]}}
-  ],
-  "explanation": "Summary of changes..."
-}}
-
-CRITICAL:
-- Do NOT return empty arrays!
-- Return EXACTLY the number of items specified
-- Use plain text only, no special characters like & or %"""
+CRITICAL RULES:
+- Return EXACTLY the same number of items as input
+- Do NOT return empty arrays
+- Use plain text only (no & % $ # characters)
+- Make meaningful adaptations to match the job"""
 
 
-class LaTeXReconstructor:
-    """Reconstructs LaTeX with adapted text while preserving structure."""
-
-    @staticmethod
-    def escape_latex(text: str) -> str:
-        """Escape special LaTeX characters."""
-        # Escape in order to avoid double-escaping
-        text = text.replace("\\", "\\textbackslash{}")
-        text = text.replace("&", "\\&")
-        text = text.replace("%", "\\%")
-        text = text.replace("$", "\\$")
-        text = text.replace("#", "\\#")
-        text = text.replace("_", "\\_")
-        text = text.replace("{", "\\{")
-        text = text.replace("}", "\\}")
-        text = text.replace("~", "\\textasciitilde{}")
-        text = text.replace("^", "\\textasciicircum{}")
-        # Restore textbackslash
-        text = text.replace("\\textbackslash{}", "\\textbackslash{}")
-        return text
+class PositionBasedReconstructor:
+    """Reconstructs LaTeX by direct position-based replacement."""
 
     @staticmethod
     def safe_escape(text: str) -> str:
-        """Escape only & % $ # for use inside LaTeX commands."""
+        """Escape special LaTeX characters."""
         text = text.replace("&", "\\&")
         text = text.replace("%", "\\%")
         text = text.replace("$", "\\$")
@@ -429,145 +229,73 @@ class LaTeXReconstructor:
         extracted: ExtractedCV
     ) -> str:
         """
-        Apply text adaptations to the original CV.
+        Apply text adaptations using position-based replacement.
 
-        Args:
-            original_cv: Original LaTeX content
-            adaptations: Adapted text from Gemini
-            extracted: Original extracted content
-
-        Returns:
-            Updated CV with adapted text
+        This works by collecting all replacements, sorting them by position
+        (reverse order), and applying them from end to start so positions
+        don't shift.
         """
-        result = original_cv
+        # Collect all replacements as (start, end, new_text) tuples
+        replacements: List[Tuple[int, int, str]] = []
 
-        # 1. Replace tagline
-        if "tagline" in adaptations:
+        # 1. Tagline
+        if extracted.tagline and "tagline" in adaptations:
             new_tagline = self.safe_escape(adaptations["tagline"])
-            # Add line breaks for long taglines
-            if len(new_tagline) > 80:
-                words = new_tagline.split()
-                lines = []
-                current_line = []
-                current_len = 0
-                for word in words:
-                    if current_len + len(word) > 80:
-                        lines.append(" ".join(current_line))
-                        current_line = [word]
-                        current_len = len(word)
-                    else:
-                        current_line.append(word)
-                        current_len += len(word) + 1
-                if current_line:
-                    lines.append(" ".join(current_line))
-                new_tagline = "\\\\ ".join(lines)
+            replacements.append((
+                extracted.tagline.start,
+                extracted.tagline.end,
+                new_tagline
+            ))
+            print(f"   📝 Tagline: '{extracted.tagline.text[:30]}...' -> '{new_tagline[:30]}...'", file=sys.stderr)
 
-            # Use regex to match tagline with any content
-            result = re.sub(
-                r"\\tagline\{.*?\}",
-                f"\\\\tagline{{{new_tagline}}}",
-                result,
-                flags=re.DOTALL
-            )
-
-        # 2. Replace job titles using regex for flexibility with whitespace
+        # 2. Job titles
         if "job_titles" in adaptations:
             job_titles = adaptations["job_titles"]
-            job_replacements = 0
-            for i, (orig_job, new_title) in enumerate(zip(extracted.jobs, job_titles)):
-                if i < len(job_titles):
-                    escaped_title = self.safe_escape(new_title)
-                    # Use regex to match job with flexible whitespace
-                    # Match: \job{dates}{company}{title} with any whitespace between
-                    pattern = (
-                        r"\\job\{" + re.escape(orig_job.dates) + r"\}\s*"
-                        r"\{" + re.escape(orig_job.company) + r"\}\s*"
-                        r"\{" + re.escape(orig_job.title) + r"\}"
-                    )
-                    replacement = (
-                        f"\\\\job{{{orig_job.dates}}}\n"
-                        f"        {{{orig_job.company}}}\n"
-                        f"        {{{escaped_title}}}"
-                    )
-                    new_result, n = re.subn(pattern, replacement, result)
-                    if n > 0:
-                        job_replacements += n
-                        result = new_result
-                    else:
-                        print(f"   ⚠️ Could not find job: {orig_job.title}", file=sys.stderr)
-            print(f"   📝 Replaced {job_replacements} job titles", file=sys.stderr)
+            for i, (job, new_title) in enumerate(zip(extracted.jobs, job_titles)):
+                escaped_title = self.safe_escape(new_title)
+                replacements.append((
+                    job.title.start,
+                    job.title.end,
+                    escaped_title
+                ))
+                print(f"   📝 Job {i+1}: '{job.title.text}' -> '{escaped_title}'", file=sys.stderr)
 
-        # 3. Replace achievements using regex
+        # 3. Achievements
         if "achievements" in adaptations:
-            ach_replacements = 0
-            for orig_ach, new_ach in zip(extracted.achievements, adaptations["achievements"]):
+            for i, (ach, new_ach) in enumerate(zip(extracted.achievements, adaptations["achievements"])):
                 escaped_ach = self.safe_escape(new_ach)
-                pattern = r"\\achievement\{" + re.escape(orig_ach) + r"\}"
-                replacement = f"\\\\achievement{{{escaped_ach}}}"
-                new_result, n = re.subn(pattern, replacement, result)
-                if n > 0:
-                    ach_replacements += n
-                    result = new_result
-                else:
-                    print(f"   ⚠️ Could not find achievement: {orig_ach[:50]}...", file=sys.stderr)
-            print(f"   📝 Replaced {ach_replacements} achievements", file=sys.stderr)
+                replacements.append((
+                    ach.start,
+                    ach.end,
+                    escaped_ach
+                ))
+                print(f"   📝 Achievement {i+1}: '{ach.text[:30]}...' -> '{escaped_ach[:30]}...'", file=sys.stderr)
 
-        # 4. Replace general skills tags using regex
+        # 4. General skills
         if "general_skills" in adaptations:
-            tag_replacements = 0
-            for orig_tag, new_tag in zip(extracted.general_skills, adaptations["general_skills"]):
+            for i, (tag, new_tag) in enumerate(zip(extracted.general_skills, adaptations["general_skills"])):
                 escaped_tag = self.safe_escape(new_tag)
-                pattern = r"\\tag\{" + re.escape(orig_tag) + r"\}"
-                replacement = f"\\\\tag{{{escaped_tag}}}"
-                new_result, n = re.subn(pattern, replacement, result)
-                if n > 0:
-                    tag_replacements += n
-                    result = new_result
-                else:
-                    print(f"   ⚠️ Could not find tag: {orig_tag}", file=sys.stderr)
-            print(f"   📝 Replaced {tag_replacements} skill tags", file=sys.stderr)
+                replacements.append((
+                    tag.start,
+                    tag.end,
+                    escaped_tag
+                ))
+                if tag.text != new_tag:
+                    print(f"   📝 Skill: '{tag.text}' -> '{escaped_tag}'", file=sys.stderr)
 
-        # 5. Replace experience bullets using regex
-        if "experience_bullets" in adaptations:
-            exp_replacements = 0
-            for exp_data in adaptations["experience_bullets"]:
-                company = exp_data.get("company", "")
-                new_bullets = exp_data.get("bullets", [])
+        # Sort replacements by position (reverse order - end to start)
+        replacements.sort(key=lambda x: x[0], reverse=True)
 
-                # Find matching original experience
-                orig_exp = None
-                for exp in extracted.experiences:
-                    if company in exp.company or exp.company in company:
-                        orig_exp = exp
-                        break
+        # Apply replacements from end to start
+        result = original_cv
+        for start, end, new_text in replacements:
+            result = result[:start] + new_text + result[end:]
 
-                if orig_exp and new_bullets:
-                    # Use regex to find the subsection and replace bullet content
-                    # First, escape the company name for regex
-                    escaped_company = re.escape(orig_exp.company)
-
-                    # Find the subsection pattern and capture its content
-                    subsection_pattern = (
-                        r"(\\subsection\{" + escaped_company + r"\})"
-                        r"(.*?)"
-                        r"(?=\\subsection|\\vspace\{5mm\}\s*\\subsection|\}\s*\\makebody)"
-                    )
-
-                    def replace_subsection(match):
-                        subsection_header = match.group(1)
-                        # Build new content with bullets
-                        escaped_bullets = [self.safe_escape(b) for b in new_bullets]
-                        new_content = "\n    " + "\\\\\n    ".join(escaped_bullets) + "\\\\"
-                        return subsection_header + new_content
-
-                    new_result, n = re.subn(subsection_pattern, replace_subsection, result, flags=re.DOTALL)
-                    if n > 0:
-                        exp_replacements += n
-                        result = new_result
-                    else:
-                        print(f"   ⚠️ Could not find experience section: {orig_exp.company}", file=sys.stderr)
-                elif not orig_exp:
-                    print(f"   ⚠️ No matching experience found for: {company}", file=sys.stderr)
-            print(f"   📝 Replaced {exp_replacements} experience sections", file=sys.stderr)
-
+        print(f"\n   ✅ Applied {len(replacements)} replacements", file=sys.stderr)
         return result
+
+
+# Backwards compatibility alias
+class LaTeXReconstructor(PositionBasedReconstructor):
+    """Alias for backwards compatibility."""
+    pass

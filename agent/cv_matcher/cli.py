@@ -10,7 +10,7 @@ from cv_matcher.gemini_adapter import GeminiAdapter
 from cv_matcher.latex_parser import LaTeXParser
 from cv_matcher.latex_writer import LaTeXWriter
 from cv_matcher.pdf_validator import PDFValidator
-from cv_matcher.text_adapter import TextBasedAdapter, TextExtractor, LaTeXReconstructor
+from cv_matcher.text_adapter import TextBasedAdapter, PositionExtractor, LaTeXReconstructor
 
 
 class CVMatcherCLI:
@@ -41,7 +41,7 @@ class CVMatcherCLI:
             self.text_adapter = TextBasedAdapter(
                 api_key=config.api_key, model_name=config.model_name
             )
-            self.text_extractor = TextExtractor()
+            self.text_extractor = PositionExtractor()
             self.reconstructor = LaTeXReconstructor()
         else:
             self.adapter = GeminiAdapter(
@@ -68,14 +68,14 @@ class CVMatcherCLI:
 
     def run_text_mode(self, job_description_input: str) -> None:
         """
-        Text-based adaptation mode that preserves LaTeX structure.
+        Text-based adaptation mode using position-based replacement.
 
         This mode:
-        1. Extracts only TEXT content from the CV (no LaTeX)
+        1. Extracts TEXT content with positions from the CV
         2. Sends text to Gemini for adaptation
-        3. Reconstructs LaTeX by inserting adapted text into original structure
+        3. Replaces text by direct string slicing (no pattern matching)
 
-        The LaTeX structure is NEVER modified by Gemini, guaranteeing valid output.
+        The LaTeX structure is NEVER modified, guaranteeing valid output.
 
         Args:
             job_description_input: Job description text or path to file
@@ -86,13 +86,13 @@ class CVMatcherCLI:
         # Load job description
         job_description = self._load_job_description(job_description_input)
 
-        print("🔍 Extracting text content from CV...")
-        print("   (LaTeX structure will be preserved exactly)")
+        print("🔍 Extracting text content with positions...")
+        print("   (Using position-based replacement for reliability)")
         extracted = self.text_extractor.extract_all(original_cv)
 
-        print(f"   Found {len(extracted.jobs)} jobs, {len(extracted.achievements)} achievements")
+        print(f"   Found {len(extracted.jobs)} jobs")
+        print(f"   Found {len(extracted.achievements)} achievements")
         print(f"   Found {len(extracted.general_skills)} skill tags")
-        print(f"   Found {len(extracted.experiences)} experience sections")
 
         print("\n🤖 Adapting text content with Gemini...")
         print("   (Only text is sent to AI, not LaTeX)")
@@ -102,54 +102,55 @@ class CVMatcherCLI:
         # Validate that adaptations are not empty
         if not adaptations.get("job_titles"):
             print("⚠️  Warning: job_titles is empty, using originals", file=sys.stderr)
-            adaptations["job_titles"] = [job.title for job in extracted.jobs]
+            adaptations["job_titles"] = [job.title.text for job in extracted.jobs]
 
         if not adaptations.get("achievements"):
             print("⚠️  Warning: achievements is empty, using originals", file=sys.stderr)
-            adaptations["achievements"] = extracted.achievements
+            adaptations["achievements"] = [ach.text for ach in extracted.achievements]
 
         if not adaptations.get("general_skills"):
             print("⚠️  Warning: general_skills is empty, using originals", file=sys.stderr)
-            adaptations["general_skills"] = extracted.general_skills
-
-        if not adaptations.get("experience_bullets"):
-            print("⚠️  Warning: experience_bullets is empty, using originals", file=sys.stderr)
-            adaptations["experience_bullets"] = [
-                {"company": exp.company, "bullets": exp.bullets}
-                for exp in extracted.experiences
-            ]
+            adaptations["general_skills"] = [tag.text for tag in extracted.general_skills]
 
         # Show stats
-        print(f"   Adapted {len(adaptations.get('job_titles', []))} job titles")
-        print(f"   Adapted {len(adaptations.get('achievements', []))} achievements")
-        print(f"   Adapted {len(adaptations.get('general_skills', []))} skills")
-        print(f"   Adapted {len(adaptations.get('experience_bullets', []))} experience sections")
+        print(f"   Received {len(adaptations.get('job_titles', []))} job titles")
+        print(f"   Received {len(adaptations.get('achievements', []))} achievements")
+        print(f"   Received {len(adaptations.get('general_skills', []))} skills")
 
         if "explanation" in adaptations:
             print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
 
         # Show diff between original and adapted content
         print("📊 Comparing original vs adapted content:")
-        self._show_diff("tagline", extracted.tagline, adaptations.get("tagline", ""))
+        tagline_text = extracted.tagline.text if extracted.tagline else ""
+        self._show_diff("tagline", tagline_text, adaptations.get("tagline", ""))
         self._show_diff(
             "job_titles",
-            [j.title for j in extracted.jobs],
+            [j.title.text for j in extracted.jobs],
             adaptations.get("job_titles", []),
         )
-        self._show_diff("achievements", extracted.achievements, adaptations.get("achievements", []))
-        self._show_diff("general_skills", extracted.general_skills, adaptations.get("general_skills", []))
+        self._show_diff(
+            "achievements",
+            [a.text for a in extracted.achievements],
+            adaptations.get("achievements", []),
+        )
+        self._show_diff(
+            "general_skills",
+            [t.text for t in extracted.general_skills],
+            adaptations.get("general_skills", []),
+        )
 
-        print("✏️  Reconstructing CV with adapted text...")
+        print("\n✏️  Applying adaptations using position-based replacement...")
         adapted_cv = self.reconstructor.apply_adaptations(
             original_cv, adaptations, extracted
         )
 
-        print("🔨 Validating LaTeX compilation...")
+        print("\n🔨 Validating LaTeX compilation...")
         is_valid, error = LaTeXWriter._compile_latex(adapted_cv)
 
         if not is_valid:
             print(f"\n⚠️  Compilation failed: {error}", file=sys.stderr)
-            print("   This shouldn't happen in text mode - please report this bug.")
+            print("   This shouldn't happen in position mode - please report this bug.")
             raise ValueError(f"LaTeX compilation error: {error}")
 
         print("✅ LaTeX compilation successful!")
