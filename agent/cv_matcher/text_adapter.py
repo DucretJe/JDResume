@@ -8,7 +8,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
@@ -31,18 +31,26 @@ class JobSpan:
 
 
 @dataclass
+class ExperienceSpan:
+    """An experience description with position of the content."""
+    company: str  # Company name from \subsection{...@Company}
+    content: TextSpan  # The bullet content (everything after \subsection{} until next section)
+
+
+@dataclass
 class ExtractedCV:
     """All text content extracted from the CV with positions."""
     tagline: TextSpan = None
     jobs: List[JobSpan] = field(default_factory=list)
     achievements: List[TextSpan] = field(default_factory=list)
     general_skills: List[TextSpan] = field(default_factory=list)
+    experiences: List[ExperienceSpan] = field(default_factory=list)
 
 
 class PositionExtractor:
     """Extracts text content with positions from LaTeX CV."""
 
-    def extract_tagline(self, content: str) -> TextSpan:
+    def extract_tagline(self, content: str) -> Optional[TextSpan]:
         """Extract tagline text with position."""
         match = re.search(r"\\tagline\{([^}]+)\}", content, re.DOTALL)
         if match:
@@ -94,6 +102,59 @@ class PositionExtractor:
             ))
         return tags
 
+    def extract_experiences(self, content: str) -> List[ExperienceSpan]:
+        """Extract experience descriptions with positions.
+
+        Format in LaTeX:
+        \\subsection{Job Title @Company}
+        Bullet 1.\\\\
+        Bullet 2.\\\\
+        ...
+
+        \\vspace{5mm}
+        \\subsection{...}
+        """
+        experiences = []
+
+        # Find the Experiences description section
+        section_match = re.search(
+            r"\\section\{Experiences description\}",
+            content
+        )
+        if not section_match:
+            return experiences
+
+        # Search for subsections after this point
+        search_start = section_match.end()
+        search_end = content.find("}\\makebody", search_start)
+        if search_end == -1:
+            search_end = len(content)
+
+        section_content = content[search_start:search_end]
+
+        # Find all subsections with their content
+        # Pattern: \subsection{...} followed by content until \vspace{5mm} or next \subsection or end
+        subsection_pattern = r"\\subsection\{([^}]+)\}\s*\n(.*?)(?=\\vspace\{5mm\}|\\subsection|$)"
+
+        for match in re.finditer(subsection_pattern, section_content, re.DOTALL):
+            company = match.group(1).strip()
+            content_text = match.group(2).strip()
+
+            # Calculate absolute positions
+            abs_start = search_start + match.start(2)
+            abs_end = search_start + match.end(2)
+
+            experiences.append(ExperienceSpan(
+                company=company,
+                content=TextSpan(
+                    text=content_text,
+                    start=abs_start,
+                    end=abs_end
+                )
+            ))
+
+        return experiences
+
     def extract_all(self, cv_content: str) -> ExtractedCV:
         """Extract all text content with positions."""
         return ExtractedCV(
@@ -101,6 +162,7 @@ class PositionExtractor:
             jobs=self.extract_jobs(cv_content),
             achievements=self.extract_achievements(cv_content),
             general_skills=self.extract_tags(cv_content),
+            experiences=self.extract_experiences(cv_content),
         )
 
 
@@ -127,12 +189,27 @@ TEXT_ADAPTATION_SCHEMA = {
             "description": "List of adapted skill tags. MUST have same count as original.",
             "items": {"type": "string"},
         },
+        "experience_descriptions": {
+            "type": "array",
+            "description": "List of adapted experience descriptions. MUST have same count as original. Each is a list of bullet points.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "company": {"type": "string"},
+                    "bullets": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["company", "bullets"],
+            },
+        },
         "explanation": {
             "type": "string",
             "description": "Brief explanation of changes made",
         },
     },
-    "required": ["tagline", "job_titles", "achievements", "general_skills", "explanation"],
+    "required": ["tagline", "job_titles", "achievements", "general_skills", "experience_descriptions", "explanation"],
 }
 
 
@@ -173,6 +250,22 @@ class TextBasedAdapter:
         skills = [tag.text for tag in extracted.general_skills]
         tagline = extracted.tagline.text if extracted.tagline else ""
 
+        # Parse experience bullets from the raw content
+        experiences_data = []
+        for exp in extracted.experiences:
+            # Split by \\ and clean up
+            bullets = []
+            for line in exp.content.text.split("\\\\"):
+                line = line.strip()
+                if line and not line.startswith("%"):
+                    # Clean up LaTeX artifacts
+                    line = line.replace("\\@", "@")
+                    bullets.append(line)
+            experiences_data.append({
+                "company": exp.company,
+                "bullets": bullets
+            })
+
         return f"""You are adapting a CV to match a job description.
 
 === ORIGINAL CV CONTENT ===
@@ -189,6 +282,9 @@ ACHIEVEMENTS ({len(achievements)} items - return exactly this many):
 GENERAL SKILLS ({len(skills)} items - return exactly this many):
 {json.dumps(skills, indent=2)}
 
+EXPERIENCE DESCRIPTIONS ({len(experiences_data)} sections - return exactly this many):
+{json.dumps(experiences_data, indent=2)}
+
 === TARGET JOB DESCRIPTION ===
 {job_description}
 
@@ -201,12 +297,14 @@ Return a JSON with:
 2. "job_titles": {len(job_titles)} adapted job titles (same order as input)
 3. "achievements": {len(achievements)} adapted achievements (same order)
 4. "general_skills": {len(skills)} adapted skills
-5. "explanation": Brief summary of changes
+5. "experience_descriptions": {len(experiences_data)} experience sections with adapted bullet points
+6. "explanation": Brief summary of changes
 
 CRITICAL RULES:
 - Return EXACTLY the same number of items as input
+- For experience_descriptions, keep the same company names and number of bullets
 - Do NOT return empty arrays
-- Use plain text only (no & % $ # characters)
+- Use plain text only (no special LaTeX characters like & % $ #)
 - Make meaningful adaptations to match the job"""
 
 
@@ -282,6 +380,24 @@ class PositionBasedReconstructor:
                 ))
                 if tag.text != new_tag:
                     print(f"   📝 Skill: '{tag.text}' -> '{escaped_tag}'", file=sys.stderr)
+
+        # 5. Experience descriptions
+        if "experience_descriptions" in adaptations:
+            exp_adaptations = adaptations["experience_descriptions"]
+            for i, (exp, new_exp) in enumerate(zip(extracted.experiences, exp_adaptations)):
+                new_bullets = new_exp.get("bullets", [])
+                if new_bullets:
+                    # Escape each bullet and join with \\
+                    escaped_bullets = [self.safe_escape(b) for b in new_bullets]
+                    # Rebuild the content: "Bullet 1.\\\\\n    Bullet 2.\\\\\n    ..."
+                    new_content = "\\\\\n    ".join(escaped_bullets) + "\\\\"
+
+                    replacements.append((
+                        exp.content.start,
+                        exp.content.end,
+                        new_content
+                    ))
+                    print(f"   📝 Experience '{exp.company}': {len(new_bullets)} bullets", file=sys.stderr)
 
         # Sort replacements by position (reverse order - end to start)
         replacements.sort(key=lambda x: x[0], reverse=True)

@@ -93,6 +93,7 @@ class CVMatcherCLI:
         print(f"   Found {len(extracted.jobs)} jobs")
         print(f"   Found {len(extracted.achievements)} achievements")
         print(f"   Found {len(extracted.general_skills)} skill tags")
+        print(f"   Found {len(extracted.experiences)} experience descriptions")
 
         print("\n🤖 Adapting text content with Gemini...")
         print("   (Only text is sent to AI, not LaTeX)")
@@ -112,10 +113,18 @@ class CVMatcherCLI:
             print("⚠️  Warning: general_skills is empty, using originals", file=sys.stderr)
             adaptations["general_skills"] = [tag.text for tag in extracted.general_skills]
 
+        if not adaptations.get("experience_descriptions"):
+            print("⚠️  Warning: experience_descriptions is empty, using originals", file=sys.stderr)
+            adaptations["experience_descriptions"] = [
+                {"company": exp.company, "bullets": exp.content.text.split("\\\\")}
+                for exp in extracted.experiences
+            ]
+
         # Show stats
         print(f"   Received {len(adaptations.get('job_titles', []))} job titles")
         print(f"   Received {len(adaptations.get('achievements', []))} achievements")
         print(f"   Received {len(adaptations.get('general_skills', []))} skills")
+        print(f"   Received {len(adaptations.get('experience_descriptions', []))} experience descriptions")
 
         if "explanation" in adaptations:
             print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
