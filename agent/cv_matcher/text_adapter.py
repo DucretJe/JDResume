@@ -268,23 +268,29 @@ class TextBasedAdapter:
                 "bullets": bullets
             })
 
+        # Calculate character counts for length guidance
+        tagline_len = len(tagline)
+        avg_job_len = sum(len(t) for t in job_titles) // max(len(job_titles), 1)
+        avg_ach_len = sum(len(a) for a in achievements) // max(len(achievements), 1)
+        avg_skill_len = sum(len(s) for s in skills) // max(len(skills), 1)
+
         return f"""You are adapting a CV to match a job description.
 
 === ORIGINAL CV CONTENT ===
 
-TAGLINE:
+TAGLINE ({tagline_len} chars - keep similar length!):
 "{tagline}"
 
-JOB TITLES ({len(job_titles)} items - return exactly this many):
+JOB TITLES ({len(job_titles)} items, avg {avg_job_len} chars each):
 {json.dumps(job_titles, indent=2)}
 
-ACHIEVEMENTS ({len(achievements)} items - return exactly this many):
+ACHIEVEMENTS ({len(achievements)} items, avg {avg_ach_len} chars each):
 {json.dumps(achievements, indent=2)}
 
-GENERAL SKILLS ({len(skills)} items - return exactly this many):
+GENERAL SKILLS ({len(skills)} items, avg {avg_skill_len} chars each):
 {json.dumps(skills, indent=2)}
 
-EXPERIENCE DESCRIPTIONS ({len(experiences_data)} sections - return exactly this many):
+EXPERIENCE DESCRIPTIONS ({len(experiences_data)} sections):
 {json.dumps(experiences_data, indent=2)}
 
 === TARGET JOB DESCRIPTION ===
@@ -307,7 +313,11 @@ CRITICAL RULES:
 - For experience_descriptions, keep the same company names and number of bullets
 - Do NOT return empty arrays
 - Use plain text only (no special LaTeX characters like & % $ #)
-- Make meaningful adaptations to match the job"""
+- Make meaningful adaptations to match the job
+- IMPORTANT: Keep text lengths SIMILAR to originals! The CV layout must not change.
+  - If original tagline is ~200 chars, keep it around 200 chars
+  - If original bullet has ~100 chars, keep it around 100 chars
+  - Longer text will overflow the page layout!"""
 
 
 class PositionBasedReconstructor:
