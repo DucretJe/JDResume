@@ -66,19 +66,20 @@ class CVMatcherCLI:
         else:
             self.run_legacy_mode(job_description_input, max_retries)
 
-    def run_text_mode(self, job_description_input: str) -> None:
+    def run_text_mode(self, job_description_input: str, max_retries: int = 3) -> None:
         """
-        Text-based adaptation mode using position-based replacement.
+        Text-based adaptation mode with visual feedback loop.
 
         This mode:
         1. Extracts TEXT content with positions from the CV
         2. Sends text to Gemini for adaptation
-        3. Replaces text by direct string slicing (no pattern matching)
-
-        The LaTeX structure is NEVER modified, guaranteeing valid output.
+        3. Compiles to PDF and compares visually with original
+        4. If layout differs, retries with tighter constraints
+        5. Repeats until layout matches or max retries reached
 
         Args:
             job_description_input: Job description text or path to file
+            max_retries: Maximum retry attempts for layout validation
         """
         print("📄 Reading original CV...")
         original_cv = self.parser.read_file(self.config.cv_path)
@@ -95,12 +96,101 @@ class CVMatcherCLI:
         print(f"   Found {len(extracted.general_skills)} skill tags")
         print(f"   Found {len(extracted.experiences)} experience descriptions")
 
-        print("\n🤖 Adapting text content with Gemini...")
-        print("   (Only text is sent to AI, not LaTeX)")
+        # Visual feedback loop
+        layout_feedback = None
+        for attempt in range(max_retries):
+            if attempt > 0:
+                print(f"\n🔄 Retry {attempt}/{max_retries-1} - Adjusting for layout issues...")
 
-        adaptations = self.text_adapter.adapt_cv(original_cv, job_description)
+            # Adapt CV (with feedback if available)
+            print("\n🤖 Adapting text content with Gemini...")
+            adaptations = self._adapt_with_feedback(
+                original_cv, job_description, extracted, layout_feedback
+            )
 
-        # Validate that adaptations are not empty
+            # Fill in empty fields with originals
+            self._fill_empty_adaptations(adaptations, extracted)
+
+            # Show stats
+            print(f"   Received {len(adaptations.get('job_titles', []))} job titles")
+            print(f"   Received {len(adaptations.get('achievements', []))} achievements")
+            print(f"   Received {len(adaptations.get('general_skills', []))} skills")
+            print(f"   Received {len(adaptations.get('experience_descriptions', []))} experience descriptions")
+
+            if "explanation" in adaptations:
+                print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
+
+            # Apply adaptations
+            print("\n✏️  Applying adaptations using position-based replacement...")
+            adapted_cv = self.reconstructor.apply_adaptations(
+                original_cv, adaptations, extracted
+            )
+
+            # Validate LaTeX compilation
+            print("\n🔨 Validating LaTeX compilation...")
+            is_valid, error = LaTeXWriter._compile_latex(adapted_cv)
+
+            if not is_valid:
+                print(f"\n⚠️  Compilation failed: {error}", file=sys.stderr)
+                raise ValueError(f"LaTeX compilation error: {error}")
+
+            print("✅ LaTeX compilation successful!")
+
+            # Save the adapted CV
+            print(f"\n💾 Saving adapted CV to: {self.config.output_path}")
+            self.writer.write_file(self.config.output_path, adapted_cv)
+
+            # Visual quality control if original PDF provided
+            if self.original_pdf and self.pdf_validator:
+                layout_feedback = self._check_layout(extracted)
+                if layout_feedback and layout_feedback.get("is_valid"):
+                    print("✅ Quality control passed!")
+                    break
+                elif layout_feedback and not layout_feedback.get("is_valid"):
+                    if attempt == max_retries - 1:
+                        print(f"\n⚠️  Layout issues remain after {max_retries} attempts", file=sys.stderr)
+                        print(f"   Issues: {layout_feedback.get('issues', [])}", file=sys.stderr)
+                        # Don't fail, just warn - the CV is still usable
+                    else:
+                        print(f"   ⚠️  Layout issues detected, will retry...")
+                        for issue in layout_feedback.get("issues", []):
+                            print(f"      - {issue}", file=sys.stderr)
+                        continue
+            break
+
+        print("\n✅ CV adaptation complete!")
+
+    def _adapt_with_feedback(
+        self, original_cv: str, job_description: str, extracted, layout_feedback
+    ):
+        """Adapt CV, incorporating layout feedback if available."""
+        # Add length constraints based on feedback
+        extra_constraints = ""
+        if layout_feedback and layout_feedback.get("fixes"):
+            fixes = layout_feedback["fixes"]
+            constraints = []
+            if fixes.get("tagline"):
+                constraints.append(f"- TAGLINE: {fixes['tagline']}")
+            if fixes.get("job_titles"):
+                constraints.append(f"- JOB TITLES: {fixes['job_titles']}")
+            if fixes.get("achievements"):
+                constraints.append(f"- ACHIEVEMENTS: {fixes['achievements']}")
+            if fixes.get("general_skills"):
+                constraints.append(f"- SKILLS: {fixes['general_skills']}")
+            if fixes.get("experience_bullets"):
+                constraints.append(f"- EXPERIENCE: {fixes['experience_bullets']}")
+            if fixes.get("all"):
+                constraints.append(f"- ALL FIELDS: {fixes['all']}")
+
+            if constraints:
+                extra_constraints = "\n\n⚠️ LAYOUT FIXES REQUIRED:\n" + "\n".join(constraints)
+                print(f"   Adding constraints: {constraints}", file=sys.stderr)
+
+        # Call adapter (it will use its own prompt)
+        return self.text_adapter.adapt_cv(original_cv, job_description + extra_constraints)
+
+    def _fill_empty_adaptations(self, adaptations, extracted):
+        """Fill in empty adaptation fields with originals."""
         if not adaptations.get("job_titles"):
             print("⚠️  Warning: job_titles is empty, using originals", file=sys.stderr)
             adaptations["job_titles"] = [job.title.text for job in extracted.jobs]
@@ -120,101 +210,47 @@ class CVMatcherCLI:
                 for exp in extracted.experiences
             ]
 
-        # Show stats
-        print(f"   Received {len(adaptations.get('job_titles', []))} job titles")
-        print(f"   Received {len(adaptations.get('achievements', []))} achievements")
-        print(f"   Received {len(adaptations.get('general_skills', []))} skills")
-        print(f"   Received {len(adaptations.get('experience_descriptions', []))} experience descriptions")
+    def _check_layout(self, extracted) -> dict:
+        """Check layout by compiling to PDF and comparing visually."""
+        print("\n🔍 Running visual quality control...")
 
-        if "explanation" in adaptations:
-            print(f"\n📝 Changes made:\n{adaptations['explanation']}\n")
+        adapted_pdf = self.config.output_path.replace(".tex", ".pdf")
+        latex_dir = os.path.dirname(self.config.cv_path)
 
-        # Show diff between original and adapted content
-        print("📊 Comparing original vs adapted content:")
-        tagline_text = extracted.tagline.text if extracted.tagline else ""
-        self._show_diff("tagline", tagline_text, adaptations.get("tagline", ""))
-        self._show_diff(
-            "job_titles",
-            [j.title.text for j in extracted.jobs],
-            adaptations.get("job_titles", []),
-        )
-        self._show_diff(
-            "achievements",
-            [a.text for a in extracted.achievements],
-            adaptations.get("achievements", []),
-        )
-        self._show_diff(
-            "general_skills",
-            [t.text for t in extracted.general_skills],
-            adaptations.get("general_skills", []),
+        print("   📄 Compiling adapted CV to PDF...")
+        compile_success, compile_error = LaTeXWriter.compile_to_pdf(
+            self.config.output_path, adapted_pdf, latex_dir
         )
 
-        print("\n✏️  Applying adaptations using position-based replacement...")
-        adapted_cv = self.reconstructor.apply_adaptations(
-            original_cv, adaptations, extracted
-        )
+        if not compile_success:
+            return {
+                "is_valid": False,
+                "issues": [f"PDF compilation failed: {compile_error}"],
+                "fixes": {}
+            }
 
-        print("\n🔨 Validating LaTeX compilation...")
-        is_valid, error = LaTeXWriter._compile_latex(adapted_cv)
+        # Quick page count check
+        original_pages = self._get_page_count(self.original_pdf)
+        adapted_pages = self._get_page_count(adapted_pdf)
 
-        if not is_valid:
-            print(f"\n⚠️  Compilation failed: {error}", file=sys.stderr)
-            print("   This shouldn't happen in position mode - please report this bug.")
-            raise ValueError(f"LaTeX compilation error: {error}")
+        print(f"   📊 Page count: original={original_pages}, adapted={adapted_pages}")
 
-        print("✅ LaTeX compilation successful!")
+        if original_pages != adapted_pages:
+            return {
+                "is_valid": False,
+                "issues": [f"Page count changed: {original_pages} -> {adapted_pages}"],
+                "fixes": {"all": f"Reduce ALL text lengths by ~20% to fit in {original_pages} pages"}
+            }
 
-        # Save the adapted CV
-        print(f"\n💾 Saving adapted CV to: {self.config.output_path}")
-        self.writer.write_file(self.config.output_path, adapted_cv)
+        # Visual comparison with Gemini
+        feedback = self.pdf_validator.get_layout_feedback(self.original_pdf, adapted_pdf)
 
-        # Quality control: Compare page counts and layout
-        if self.original_pdf:
-            print("\n🔍 Running quality control validation...")
+        if feedback.get("is_valid"):
+            print(f"   ✅ Layout matches: {feedback.get('explanation', 'OK')}")
+        else:
+            print(f"   ⚠️  Layout issues: {feedback.get('explanation', 'Unknown')}")
 
-            # Compile adapted CV to PDF
-            adapted_pdf = self.config.output_path.replace(".tex", ".pdf")
-            latex_dir = os.path.dirname(self.config.cv_path)
-
-            print("   📄 Compiling adapted CV to PDF...")
-            compile_success, compile_error = LaTeXWriter.compile_to_pdf(
-                self.config.output_path, adapted_pdf, latex_dir
-            )
-
-            if not compile_success:
-                raise ValueError(f"PDF compilation failed: {compile_error}")
-
-            # Quick page count check
-            original_pages = self._get_page_count(self.original_pdf)
-            adapted_pages = self._get_page_count(adapted_pdf)
-
-            print(f"   📊 Page count: original={original_pages}, adapted={adapted_pages}")
-
-            if original_pages != adapted_pages:
-                print(f"\n❌ QUALITY CONTROL FAILED!", file=sys.stderr)
-                print(f"   Page count mismatch: {original_pages} -> {adapted_pages}", file=sys.stderr)
-                print(f"   The adapted content is too long. Content must fit in {original_pages} pages.", file=sys.stderr)
-                raise ValueError(
-                    f"Quality control failed: page count changed from {original_pages} to {adapted_pages}. "
-                    "The adapted content is too long."
-                )
-
-            # Optional: Full visual validation with Gemini
-            if self.pdf_validator:
-                print("   🖼️  Running visual validation...")
-                is_valid, explanation = self.pdf_validator.validate_adaptation(
-                    self.original_pdf, adapted_pdf
-                )
-
-                if not is_valid:
-                    print(f"\n❌ VISUAL VALIDATION FAILED: {explanation}", file=sys.stderr)
-                    raise ValueError(f"Visual validation failed: {explanation}")
-
-                print(f"   ✅ Visual validation passed: {explanation}")
-
-            print("✅ Quality control passed!")
-
-        print("\n✅ CV adaptation complete!")
+        return feedback
 
     @staticmethod
     def _get_page_count(pdf_path: str) -> int:

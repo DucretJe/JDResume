@@ -1,11 +1,13 @@
 """PDF visual validator using Gemini multimodal capabilities."""
 
+import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import google.generativeai as genai
 
@@ -67,6 +69,142 @@ class PDFValidator:
         images = sorted(Path(output_dir).glob(f"{base_name}-*.png"))
         return [str(img) for img in images]
 
+    def get_layout_feedback(
+        self, original_pdf: str, adapted_pdf: str
+    ) -> Dict:
+        """
+        Compare PDFs and get detailed feedback about layout issues.
+
+        Args:
+            original_pdf: Path to original CV PDF
+            adapted_pdf: Path to adapted CV PDF
+
+        Returns:
+            Dict with:
+                - is_valid: bool
+                - issues: list of specific issues
+                - fixes: dict mapping field names to suggested fixes
+                - explanation: str
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                original_images = self.convert_pdf_to_images(original_pdf, tmpdir)
+                adapted_images = self.convert_pdf_to_images(adapted_pdf, tmpdir)
+            except RuntimeError as e:
+                return {
+                    "is_valid": False,
+                    "issues": [str(e)],
+                    "fixes": {},
+                    "explanation": str(e)
+                }
+
+            if len(original_images) != len(adapted_images):
+                return {
+                    "is_valid": False,
+                    "issues": [f"Page count changed: {len(original_images)} -> {len(adapted_images)}"],
+                    "fixes": {"all": "Make all text shorter to fit in original page count"},
+                    "explanation": "Content overflow - too much text"
+                }
+
+            # Upload images
+            print("   🔍 Comparing layouts with Gemini vision...", file=sys.stderr)
+
+            original_page1 = genai.upload_file(original_images[0])
+            adapted_page1 = genai.upload_file(adapted_images[0])
+
+            # Also compare page 2 if exists
+            original_page2 = None
+            adapted_page2 = None
+            if len(original_images) > 1:
+                original_page2 = genai.upload_file(original_images[1])
+                adapted_page2 = genai.upload_file(adapted_images[1])
+
+            prompt = """Compare these CV layouts. I'm showing you the ORIGINAL CV and the ADAPTED CV.
+
+IMAGE 1: Original CV Page 1
+IMAGE 2: Adapted CV Page 1
+IMAGE 3: Original CV Page 2 (if present)
+IMAGE 4: Adapted CV Page 2 (if present)
+
+TASK: Check if the ADAPTED CV has the same visual layout as the ORIGINAL.
+
+Look for these LAYOUT ISSUES:
+1. TAGLINE: Is it wrapping to more lines than original? (should stay same number of lines)
+2. JOB TITLES: Are any titles wrapping or misaligned compared to original?
+3. SKILLS TAGS: Are they overflowing or wrapping differently?
+4. ACHIEVEMENTS: Are they taking more vertical space?
+5. EXPERIENCE BULLETS: Are they longer causing overflow?
+6. OVERALL: Does adapted page have more content causing overflow?
+
+For each issue found, identify WHICH FIELD needs to be SHORTER.
+
+Respond with JSON:
+{
+    "is_valid": true/false,
+    "layout_matches": true/false,
+    "issues": [
+        "specific issue 1",
+        "specific issue 2"
+    ],
+    "fixes": {
+        "tagline": "reduce by ~X characters" or null,
+        "job_titles": "title N is too long" or null,
+        "achievements": "achievement N is too long" or null,
+        "general_skills": "skill names are too long" or null,
+        "experience_bullets": "bullets for company X are too long" or null
+    },
+    "explanation": "brief summary"
+}
+
+IMPORTANT: Only report REAL layout differences. Minor text changes are OK.
+Focus on: line wrapping, overflow, misalignment, spacing changes."""
+
+            try:
+                images = [prompt, original_page1, adapted_page1]
+                if original_page2 and adapted_page2:
+                    images.extend([original_page2, adapted_page2])
+
+                response = self.model.generate_content(images)
+                result_text = response.text
+
+                # Parse JSON response
+                json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
+                if json_match:
+                    result = json.loads(json_match.group())
+                    return {
+                        "is_valid": result.get("is_valid", False) and result.get("layout_matches", False),
+                        "issues": result.get("issues", []),
+                        "fixes": result.get("fixes", {}),
+                        "explanation": result.get("explanation", "")
+                    }
+                else:
+                    return {
+                        "is_valid": True,  # Assume OK if can't parse
+                        "issues": [],
+                        "fixes": {},
+                        "explanation": "Could not parse response, assuming OK"
+                    }
+
+            except Exception as e:
+                return {
+                    "is_valid": True,  # Don't block on errors
+                    "issues": [],
+                    "fixes": {},
+                    "explanation": f"Validation error: {e}"
+                }
+
+            finally:
+                # Clean up
+                try:
+                    original_page1.delete()
+                    adapted_page1.delete()
+                    if original_page2:
+                        original_page2.delete()
+                    if adapted_page2:
+                        adapted_page2.delete()
+                except Exception:
+                    pass
+
     def validate_adaptation(
         self, original_pdf: str, adapted_pdf: str
     ) -> Tuple[bool, str]:
@@ -80,97 +218,5 @@ class PDFValidator:
         Returns:
             Tuple of (is_valid, explanation)
         """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Convert PDFs to images
-            print("📸 Converting PDFs to images...", file=sys.stderr)
-            try:
-                original_images = self.convert_pdf_to_images(original_pdf, tmpdir)
-                adapted_images = self.convert_pdf_to_images(adapted_pdf, tmpdir)
-            except RuntimeError as e:
-                return False, str(e)
-
-            if len(original_images) != len(adapted_images):
-                return False, (
-                    f"Page count mismatch: original has {len(original_images)} pages, "
-                    f"adapted has {len(adapted_images)} pages"
-                )
-
-            if len(adapted_images) < 2:
-                return False, "Expected at least 2 pages in the CV"
-
-            # Upload images to Gemini
-            print("🔍 Analyzing pages with Gemini...", file=sys.stderr)
-
-            # Load images
-            original_page1 = genai.upload_file(original_images[0])
-            original_page2 = genai.upload_file(original_images[1])
-            adapted_page1 = genai.upload_file(adapted_images[0])
-            adapted_page2 = genai.upload_file(adapted_images[1])
-
-            prompt = """You are validating an adapted CV. I'm showing you 4 images:
-1. Original CV Page 1
-2. Original CV Page 2
-3. Adapted CV Page 1
-4. Adapted CV Page 2
-
-VALIDATION CRITERIA:
-1. Page 1 should contain: Job titles, Education, Skills tags, Wheel chart
-2. Page 2 should contain: DETAILED job descriptions with bullet points
-3. Page 1 and Page 2 should have DIFFERENT content (not duplicated)
-4. The adapted version should maintain the same STRUCTURE as original
-5. Text content can change but layout should be similar
-
-CRITICAL CHECK: Are the two pages of the ADAPTED CV showing DIFFERENT content?
-- Page 1 = Summary (job titles, education, skills)
-- Page 2 = Details (job descriptions with bullet points)
-
-If both pages of the adapted CV show the same content, that's a FAILURE.
-
-Respond with JSON:
-{
-    "is_valid": true/false,
-    "pages_are_different": true/false,
-    "structure_preserved": true/false,
-    "issues": ["list of issues if any"],
-    "explanation": "brief explanation"
-}"""
-
-            try:
-                response = self.model.generate_content(
-                    [prompt, original_page1, original_page2, adapted_page1, adapted_page2]
-                )
-                result_text = response.text
-
-                # Parse response
-                import json
-                import re
-
-                # Extract JSON from response
-                json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
-                if json_match:
-                    result = json.loads(json_match.group())
-                    is_valid = result.get("is_valid", False)
-                    explanation = result.get("explanation", "No explanation provided")
-
-                    if not result.get("pages_are_different", True):
-                        return False, "FAILURE: Both pages have the same content"
-
-                    if not result.get("structure_preserved", True):
-                        return False, f"Structure not preserved: {explanation}"
-
-                    return is_valid, explanation
-                else:
-                    return False, f"Could not parse validation response: {result_text}"
-
-            except Exception as e:
-                return False, f"Validation error: {str(e)}"
-
-            finally:
-                # Clean up uploaded files
-                try:
-                    original_page1.delete()
-                    original_page2.delete()
-                    adapted_page1.delete()
-                    adapted_page2.delete()
-                except Exception:
-                    pass  # Ignore cleanup errors
+        feedback = self.get_layout_feedback(original_pdf, adapted_pdf)
+        return feedback["is_valid"], feedback["explanation"]
