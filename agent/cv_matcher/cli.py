@@ -168,7 +168,71 @@ class CVMatcherCLI:
         print(f"\n💾 Saving adapted CV to: {self.config.output_path}")
         self.writer.write_file(self.config.output_path, adapted_cv)
 
+        # Quality control: Compare page counts and layout
+        if self.original_pdf:
+            print("\n🔍 Running quality control validation...")
+
+            # Compile adapted CV to PDF
+            adapted_pdf = self.config.output_path.replace(".tex", ".pdf")
+            latex_dir = os.path.dirname(self.config.cv_path)
+
+            print("   📄 Compiling adapted CV to PDF...")
+            compile_success, compile_error = LaTeXWriter.compile_to_pdf(
+                self.config.output_path, adapted_pdf, latex_dir
+            )
+
+            if not compile_success:
+                raise ValueError(f"PDF compilation failed: {compile_error}")
+
+            # Quick page count check
+            original_pages = self._get_page_count(self.original_pdf)
+            adapted_pages = self._get_page_count(adapted_pdf)
+
+            print(f"   📊 Page count: original={original_pages}, adapted={adapted_pages}")
+
+            if original_pages != adapted_pages:
+                print(f"\n❌ QUALITY CONTROL FAILED!", file=sys.stderr)
+                print(f"   Page count mismatch: {original_pages} -> {adapted_pages}", file=sys.stderr)
+                print(f"   The adapted content is too long. Content must fit in {original_pages} pages.", file=sys.stderr)
+                raise ValueError(
+                    f"Quality control failed: page count changed from {original_pages} to {adapted_pages}. "
+                    "The adapted content is too long."
+                )
+
+            # Optional: Full visual validation with Gemini
+            if self.pdf_validator:
+                print("   🖼️  Running visual validation...")
+                is_valid, explanation = self.pdf_validator.validate_adaptation(
+                    self.original_pdf, adapted_pdf
+                )
+
+                if not is_valid:
+                    print(f"\n❌ VISUAL VALIDATION FAILED: {explanation}", file=sys.stderr)
+                    raise ValueError(f"Visual validation failed: {explanation}")
+
+                print(f"   ✅ Visual validation passed: {explanation}")
+
+            print("✅ Quality control passed!")
+
         print("\n✅ CV adaptation complete!")
+
+    @staticmethod
+    def _get_page_count(pdf_path: str) -> int:
+        """Get the number of pages in a PDF using pdfinfo."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["pdfinfo", pdf_path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            for line in result.stdout.split("\n"):
+                if line.startswith("Pages:"):
+                    return int(line.split(":")[1].strip())
+            return 0
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+            return 0
 
     def run_legacy_mode(self, job_description_input: str, max_retries: int = 3) -> None:
         """
