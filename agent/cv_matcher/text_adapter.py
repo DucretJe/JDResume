@@ -124,10 +124,12 @@ class PositionExtractor:
         if not section_match:
             return experiences
 
-        # Search for subsections after this point
+        # Search for the closing } before \makebody (handles newlines)
         search_start = section_match.end()
-        search_end = content.find("}\\makebody", search_start)
-        if search_end == -1:
+        close_match = re.search(r"\}\s*\\makebody", content[search_start:])
+        if close_match:
+            search_end = search_start + close_match.start()
+        else:
             search_end = len(content)
 
         section_content = content[search_start:search_end]
