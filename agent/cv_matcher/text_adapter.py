@@ -401,10 +401,11 @@ class PositionBasedReconstructor:
                 if new_bullets:
                     # Escape each bullet and join with \\
                     escaped_bullets = [self.safe_escape(b) for b in new_bullets]
-                    # Rebuild the content with proper indentation:
-                    # "    Bullet 1.\\\\\n    Bullet 2.\\\\\n    ..."
+                    # Rebuild the content with proper indentation and spacing:
+                    # "    Bullet 1.\\\\\n    Bullet 2.\\\\\n    \n    "
                     # The leading "    " matches the original LaTeX indentation
-                    new_content = "    " + "\\\\\n    ".join(escaped_bullets) + "\\\\"
+                    # The trailing "\n    \n    " preserves spacing before \vspace{5mm}
+                    new_content = "    " + "\\\\\n    ".join(escaped_bullets) + "\\\\\n    \n    "
 
                     replacements.append((
                         exp.content.start,
