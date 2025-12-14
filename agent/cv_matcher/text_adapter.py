@@ -402,10 +402,12 @@ class PositionBasedReconstructor:
                     # Escape each bullet and join with \\
                     escaped_bullets = [self.safe_escape(b) for b in new_bullets]
                     # Rebuild the content with proper indentation and spacing:
-                    # "    Bullet 1.\\\\\n    Bullet 2.\\\\\n    \n    "
+                    # "    Bullet 1.\\\\\n    Bullet 2.\\\\\n    LastBullet\n    \n    "
                     # The leading "    " matches the original LaTeX indentation
+                    # Bullets are joined with \\ (line breaks) between them
+                    # Last bullet does NOT have \\ (matches original LaTeX pattern)
                     # The trailing "\n    \n    " preserves spacing before \vspace{5mm}
-                    new_content = "    " + "\\\\\n    ".join(escaped_bullets) + "\\\\\n    \n    "
+                    new_content = "    " + "\\\\\n    ".join(escaped_bullets) + "\n    \n    "
 
                     replacements.append((
                         exp.content.start,
