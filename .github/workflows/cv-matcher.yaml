@@ -12,6 +12,16 @@ on:
         description: 'Optional: Path to job description file in repo (leave empty if using direct text)'
         required: false
         type: string
+      model:
+        description: 'Gemini model to use'
+        required: false
+        type: choice
+        default: 'gemini-3-pro-preview'
+        options:
+          - 'gemini-3-pro-preview'
+          - 'gemini-2.5-pro'
+          - 'gemini-2.5-flash'
+          - 'gemini-2.0-flash'
 
 jobs:
   adapt-and-compile:
@@ -28,9 +38,31 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
+      - name: Install TeX Live and poppler for validation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-fonts-extra poppler-utils
+
       - name: Install agent dependencies
         working-directory: agent
         run: uv sync
+
+      - name: Download photo for LaTeX validation
+        run: |
+          wget https://media.githubusercontent.com/media/DucretJe/JDResume/main/LaTeX/photo.jpg -O ./LaTeX/picture.jpg
+
+      - name: Compile original CV to PDF (reference for visual validation)
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: ./LaTeX/resume.tex
+          latexmk_use_xelatex: true
+        env:
+          TEXINPUTS: "./LaTeX:"
+
+      - name: Save original PDF for visual comparison
+        run: |
+          mv resume.pdf ./LaTeX/original_cv.pdf
+          echo "📄 Original CV compiled: ./LaTeX/original_cv.pdf"
 
       - name: Create job description file
         run: |
@@ -51,11 +83,14 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "🤖 Running CV Matcher Agent..."
+          echo "🤖 Running CV Matcher Agent with model: ${{ inputs.model }}"
           uv run cv-matcher \
             --cv ../LaTeX/resume.tex \
             --job-description /tmp/job_description.txt \
-            --output ../LaTeX/resume_adapted.tex
+            --output ../LaTeX/resume_adapted.tex \
+            --model ${{ inputs.model }} \
+            --max-retries 5 \
+            --original-pdf ../LaTeX/original_cv.pdf
 
       - name: Show adaptation summary
         run: |
@@ -63,10 +98,6 @@ jobs:
           echo "Original CV: ./LaTeX/resume.tex"
           echo "Adapted CV: ./LaTeX/resume_adapted.tex"
           wc -l ./LaTeX/resume.tex ./LaTeX/resume_adapted.tex
-
-      - name: Download photo for LaTeX compilation
-        run: |
-          wget https://media.githubusercontent.com/media/DucretJe/JDResume/main/LaTeX/photo.jpg -O picture.jpg
 
       - name: Compile adapted CV to PDF
         uses: xu-cheng/latex-action@v4

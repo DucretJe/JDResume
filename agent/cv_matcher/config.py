@@ -9,7 +9,7 @@ class AgentConfig:
     """Configuration for the CV Matcher Agent."""
 
     api_key: str
-    model_name: str = "gemini-2.5-flash"
+    model_name: str = "gemini-3-pro-preview"
     cv_path: str = "./LaTeX/resume.tex"
     output_path: str = "./LaTeX/resume_adapted.tex"
 
@@ -36,37 +36,64 @@ class AgentConfig:
 
         return cls(
             api_key=api_key,
-            model_name=kwargs.get("model_name", "gemini-2.5-flash"),
+            model_name=kwargs.get("model_name", "gemini-3-pro-preview"),
             cv_path=kwargs.get("cv_path", "./LaTeX/resume.tex"),
             output_path=kwargs.get("output_path", "./LaTeX/resume_adapted.tex"),
         )
 
 
 # Prompt template for Gemini
-ADAPTATION_PROMPT_TEMPLATE = """You are a professional CV optimization expert. \
-Your task is to adapt a CV to match a specific job description while staying \
-COMPLETELY GROUNDED on the existing content.
+ADAPTATION_PROMPT_TEMPLATE = """You are a professional CV optimization expert.
+Your task is to adapt a CV to match a specific job description.
+
+CRITICAL: You must PRESERVE the EXACT LaTeX structure. Only modify TEXT CONTENT.
+
+WHAT YOU CAN CHANGE:
+- Text inside commands (e.g., the words in \\job{{dates}}{{company}}{{title}})
+- Order of items (reorder jobs, skills, etc.)
+- Wording of descriptions and bullet points
+
+WHAT YOU MUST NOT CHANGE:
+- LaTeX commands (\\job, \\section, \\tag, \\subsection, \\skill, etc.)
+- Brace structure {{ and }}
+- Line break commands \\\\
+- Special formatting (\\vspace, \\smallskip, etc.)
+- The overall document structure
+
+=== THIS IS A 2-PAGE CV - PAGES MUST BE DIFFERENT ===
+
+PAGE 1 = "mainbar" field:
+- \\section{{Work history}} with \\job{{dates}}{{company}}{{title}} - SHORT summaries only
+- \\section{{Education}} with \\job commands
+- \\section{{Achievements, honours and awards}} with \\achievement commands
+- \\section{{General Skills}} with \\tag{{skill}} commands
+- \\section{{Wheel Chart}}
+- NO detailed bullet points here - just job titles and dates!
+
+PAGE 2 = "experiences" field:
+- \\section{{Experiences description}}
+- \\subsection{{Company Name}} for each company
+- DETAILED bullet points with \\\\ showing responsibilities
+- This is where job DESCRIPTIONS go (not in mainbar!)
 
 STRICT RULES:
-1. DO NOT invent or add any skills, experiences, or qualifications that are not \
-already in the CV
-2. DO NOT exaggerate or lie about capabilities
-3. ONLY reformulate, reorder, and highlight existing content to better match the \
-job description
-4. Keep the LaTeX formatting intact - CRITICAL: Every opening brace {{ must have \
-a corresponding closing brace }}. Count your braces carefully!
-5. Maintain professional tone and clarity
-6. Do NOT remove or add LaTeX commands - only modify their content
+1. DO NOT invent skills or experiences not in the original CV
+2. DO NOT add or remove LaTeX commands
+3. COPY the LaTeX structure EXACTLY from the original
+4. Only change the TEXT words, not the LaTeX syntax
+5. mainbar = summaries (job titles), experiences = detailed descriptions
+6. NEVER put detailed job descriptions in mainbar
+7. NEVER put \\job commands in experiences
 
 ORIGINAL CV SECTIONS:
 ---
 Tagline:
 {tagline}
 
-Work History:
+PAGE 1 - mainbar (SHORT summaries with \\job commands):
 {mainbar}
 
-Detailed Experiences:
+PAGE 2 - experiences (DETAILED descriptions with \\subsection and bullets):
 {experiences}
 
 General Skills:
@@ -76,39 +103,17 @@ Skills Sidebar:
 {highlightbar}
 ---
 
-JOB DESCRIPTION:
+JOB DESCRIPTION TO MATCH:
 ---
 {job_description}
 ---
 
-TASK:
-Analyze the job description and adapt the CV sections to better match it. \
-Focus on:
-1. Rewriting the tagline to highlight the most relevant experience for this role
-2. Reordering or emphasizing work experiences that match the job requirements
-3. Reformulating experience descriptions to use keywords from the job description
-4. Highlighting relevant skills that match the job
-5. Adjusting the general skills tags to prioritize relevant technologies
+TASK: Adapt the CV by:
+1. Reformulating text to use keywords from the job description
+2. Reordering items to prioritize relevant experience
+3. Emphasizing skills that match the job requirements
 
-Return ONLY a JSON object with the following structure:
-{{
-    "tagline": "adapted tagline here",
-    "mainbar": "adapted mainbar section here",
-    "experiences": "adapted experiences section here",
-    "general_skills": "adapted general skills section here",
-    "highlightbar": "adapted highlightbar section here",
-    "explanation": "Brief explanation of changes made"
-}}
+Return each section with the EXACT SAME LaTeX structure as the original,
+with only the text content modified to better match the job description.
 
-CRITICAL JSON FORMATTING RULES:
-1. All LaTeX backslashes MUST be escaped as double backslashes in JSON
-   - Write \\\\section NOT \\section
-   - Write \\\\job NOT \\job
-   - Write \\\\tag NOT \\tag
-   - Write \\\\skill NOT \\skill
-   - Write \\\\\\\\ (four backslashes) for LaTeX line breaks (\\\\)
-2. Newlines should be \\n
-3. The JSON must be valid and parseable by json.loads()
-
-Make sure all LaTeX formatting is preserved exactly as in the original, \
-but properly escaped for JSON."""
+REMEMBER: mainbar and experiences are SEPARATE PAGES - keep them distinct!"""

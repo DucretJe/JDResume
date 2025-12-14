@@ -2,10 +2,11 @@
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 
 class LaTeXWriter:
@@ -34,12 +35,12 @@ class LaTeXWriter:
             with open(tex_file, "w", encoding="utf-8") as f:
                 f.write(latex_content)
 
-            # Copy required LaTeX files (class file, supporting files)
-            # Look for .cls, .sty files in the LaTeX directory
+            # Copy required LaTeX files (class file, supporting files, images)
+            # Look for .cls, .sty, and image files in the LaTeX directory
             latex_path = os.path.abspath(latex_dir)
             if os.path.exists(latex_path):
                 for filename in os.listdir(latex_path):
-                    if filename.endswith((".cls", ".sty")):
+                    if filename.endswith((".cls", ".sty", ".jpg", ".png", ".pdf", ".jpeg")):
                         src = os.path.join(latex_path, filename)
                         dst = os.path.join(tmpdir, filename)
                         try:
@@ -64,8 +65,22 @@ class LaTeXWriter:
                 )
 
                 if result.returncode != 0:
-                    # Get the last 40 lines which usually contain the error context
-                    full_error = "\n".join(result.stdout.split("\n")[-40:])
+                    # Extract the actual error from the log
+                    lines = result.stdout.split("\n")
+                    error_lines = []
+
+                    # Look for lines starting with "!" which indicate errors
+                    for i, line in enumerate(lines):
+                        if line.startswith("!"):
+                            # Get error line and context (next 5 lines)
+                            error_lines.extend(lines[i : i + 6])
+                            break
+
+                    # If no "!" found, get last 30 lines
+                    if not error_lines:
+                        error_lines = lines[-30:]
+
+                    full_error = "\n".join(error_lines)
                     return False, f"LaTeX compilation failed:\n{full_error}"
 
                 return True, ""
@@ -73,12 +88,81 @@ class LaTeXWriter:
             except subprocess.TimeoutExpired:
                 return False, "LaTeX compilation timed out"
             except FileNotFoundError:
-                # xelatex not available - fall back to basic validation
-                print(
-                    "⚠️  xelatex not available, skipping compilation check",
-                    file=sys.stderr,
+                # xelatex not available - this is an error, not a skip
+                return False, (
+                    "xelatex not found. Install texlive-xetex to enable validation. "
+                    "Without validation, broken LaTeX files may be generated."
                 )
-                return True, ""
+            except Exception as e:
+                return False, f"Compilation error: {str(e)}"
+
+    @staticmethod
+    def compile_to_pdf(
+        tex_path: str, output_pdf_path: str, latex_dir: str = "../LaTeX", timeout: int = 60
+    ) -> Tuple[bool, str]:
+        """
+        Compile a LaTeX file to PDF.
+
+        Args:
+            tex_path: Path to the .tex file to compile
+            output_pdf_path: Path where the output PDF should be saved
+            latex_dir: Directory containing LaTeX class files and dependencies
+            timeout: Compilation timeout in seconds
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Copy the tex file to temp directory
+            tex_filename = os.path.basename(tex_path)
+            tex_copy = os.path.join(tmpdir, tex_filename)
+            shutil.copy2(tex_path, tex_copy)
+
+            # Copy required LaTeX files (class file, supporting files, images)
+            latex_path = os.path.abspath(latex_dir)
+            if os.path.exists(latex_path):
+                for filename in os.listdir(latex_path):
+                    if filename.endswith((".cls", ".sty", ".jpg", ".png", ".pdf", ".jpeg")):
+                        src = os.path.join(latex_path, filename)
+                        dst = os.path.join(tmpdir, filename)
+                        try:
+                            shutil.copy2(src, dst)
+                        except Exception:
+                            pass
+
+            try:
+                # Run xelatex to produce PDF
+                result = subprocess.run(
+                    [
+                        "xelatex",
+                        "-interaction=nonstopmode",
+                        "-halt-on-error",
+                        tex_filename,
+                    ],
+                    cwd=tmpdir,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+
+                if result.returncode != 0:
+                    full_error = "\n".join(result.stdout.split("\n")[-40:])
+                    return False, f"LaTeX compilation failed:\n{full_error}"
+
+                # Copy the generated PDF to the output path
+                pdf_filename = tex_filename.replace(".tex", ".pdf")
+                pdf_path = os.path.join(tmpdir, pdf_filename)
+
+                if os.path.exists(pdf_path):
+                    shutil.copy2(pdf_path, output_pdf_path)
+                    return True, ""
+                else:
+                    return False, "PDF file was not generated"
+
+            except subprocess.TimeoutExpired:
+                return False, "LaTeX compilation timed out"
+            except FileNotFoundError:
+                return False, "xelatex not found. Install texlive-xetex."
             except Exception as e:
                 return False, f"Compilation error: {str(e)}"
 
@@ -159,6 +243,64 @@ class LaTeXWriter:
         return True, ""
 
     @staticmethod
+    def _escape_latex_specials(content: str) -> str:
+        """
+        Escape special LaTeX characters that Gemini might forget to escape.
+
+        Only escapes characters that are NOT already escaped.
+        Preserves LaTeX commands (backslash followed by letters).
+
+        Args:
+            content: Content that may contain unescaped special characters
+
+        Returns:
+            Content with special characters properly escaped
+        """
+        # Characters that need escaping in LaTeX: & % $ #
+        # We skip { } because they're structural
+        # We skip _ because it's often in commands
+
+        # First, fix common Gemini mistakes:
+        # - \@ is not valid LaTeX - @ doesn't need escaping
+        content = content.replace("\\@", "@")
+
+        # Use regex to find unescaped special chars
+        # A char is unescaped if not preceded by odd number of backslashes
+
+        def escape_if_needed(match: re.Match) -> str:
+            """Escape the character if not already escaped."""
+            full = match.group(0)
+            # Check how many backslashes precede
+            backslashes = len(full) - 1  # Everything except the special char
+            special_char = full[-1]
+
+            # If even number of backslashes (including 0), the char is unescaped
+            if backslashes % 2 == 0:
+                return full[:-1] + "\\" + special_char
+            else:
+                # Already escaped
+                return full
+
+        # Match: any number of backslashes followed by special char
+        # We process & % $ # separately
+        result = content
+
+        # Escape & (but not \&)
+        result = re.sub(r"(\\*)&", escape_if_needed, result)
+
+        # Escape % (but not \%)
+        result = re.sub(r"(\\*)%", escape_if_needed, result)
+
+        # Escape $ (but not \$) - be careful with $$ math mode
+        # Don't escape if it's $$ (display math)
+        result = re.sub(r"(\\*)\$(?!\$)", escape_if_needed, result)
+
+        # Escape # (but not \#)
+        result = re.sub(r"(\\*)#", escape_if_needed, result)
+
+        return result
+
+    @staticmethod
     def _clean_content(content: str, preserve_internal_whitespace: bool = True) -> str:
         """
         Clean adapted content from Gemini to prevent LaTeX compilation errors.
@@ -170,6 +312,9 @@ class LaTeXWriter:
         Returns:
             Cleaned content safe for LaTeX insertion
         """
+        # First, escape any unescaped special LaTeX characters
+        content = LaTeXWriter._escape_latex_specials(content)
+
         if preserve_internal_whitespace:
             # Only strip leading and trailing whitespace/newlines
             return content.strip()
@@ -192,22 +337,38 @@ class LaTeXWriter:
         Raises:
             ValueError: If adapted content has invalid LaTeX structure
         """
+        # First, validate ALL sections BEFORE applying any changes
+        print("🔍 Validating adapted sections...", file=sys.stderr)
+        validation_errors = []
+
+        for section_name in ["tagline", "mainbar", "experiences", "general_skills", "highlightbar"]:
+            if section_name in adaptations:
+                content = adaptations[section_name].strip()
+                is_valid, error = LaTeXWriter._validate_braces(content, section_name)
+                if not is_valid:
+                    validation_errors.append(f"{section_name}: {error}")
+                    print(f"❌ {section_name}: {error}", file=sys.stderr)
+                    # Show context around the error
+                    print(f"   Content preview: {content[:200]}...", file=sys.stderr)
+                else:
+                    print(f"✓ {section_name}: braces balanced", file=sys.stderr)
+
+        # If any validation errors, raise immediately
+        if validation_errors:
+            error_msg = "Brace validation failed:\n" + "\n".join(validation_errors)
+            raise ValueError(error_msg)
+
+        print("✅ All sections validated", file=sys.stderr)
+
         updated_cv = original_cv
 
         # Replace tagline
         if "tagline" in adaptations:
-            # Strip leading/trailing whitespace and normalize line breaks
-            tagline_content = adaptations["tagline"].strip()
+            tagline_content = LaTeXWriter._clean_content(adaptations["tagline"])
             # Remove any LaTeX command prefix if Gemini accidentally included it
             tagline_content = re.sub(
                 r"^\\tagline\{(.+)\}$", r"\1", tagline_content, flags=re.DOTALL
             )
-
-            # Validate braces in tagline
-            is_valid, error = LaTeXWriter._validate_braces(tagline_content, "tagline")
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(f"Content: {tagline_content[:100]}...", file=sys.stderr)
 
             updated_cv = re.sub(
                 r"\\tagline\{[^}]+\}",
@@ -222,16 +383,6 @@ class LaTeXWriter:
                 adaptations["highlightbar"]
             )
 
-            # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(
-                highlightbar_content, "highlightbar"
-            )
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(
-                    f"Content preview: {highlightbar_content[:100]}...", file=sys.stderr
-                )
-
             updated_cv = re.sub(
                 r"(\\highlightbar\{)(.*?)(\n\})",
                 lambda m: m.group(1) + "\n" + highlightbar_content + m.group(3),
@@ -243,15 +394,11 @@ class LaTeXWriter:
         if "mainbar" in adaptations:
             mainbar_content = LaTeXWriter._clean_content(adaptations["mainbar"])
 
-            # Validate braces in mainbar - this is critical!
-            is_valid, error = LaTeXWriter._validate_braces(mainbar_content, "mainbar")
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(f"Content preview: {mainbar_content[:200]}...", file=sys.stderr)
-
+            # The pattern captures: \mainbar{ ... content ... } \makebody
+            # We need to preserve the closing brace before \makebody
             updated_cv = re.sub(
-                r"(\\mainbar\{)(.*?)(\\makebody)",
-                lambda m: m.group(1) + "\n" + mainbar_content + "\n\n" + m.group(3),
+                r"(\\mainbar\{)(.*?)(\}\s*\\makebody)",
+                lambda m: m.group(1) + "\n" + mainbar_content + "\n" + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
@@ -260,19 +407,11 @@ class LaTeXWriter:
         if "experiences" in adaptations:
             experiences_content = LaTeXWriter._clean_content(adaptations["experiences"])
 
-            # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(
-                experiences_content, "experiences"
-            )
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(
-                    f"Content preview: {experiences_content[:200]}...", file=sys.stderr
-                )
-
+            # The experiences section is inside the second \mainbar{...}
+            # Preserve the closing brace before \makebody
             updated_cv = re.sub(
-                r"(\\section\{Experiences description\})(.*?)(\\makebody)",
-                lambda m: m.group(1) + "\n" + experiences_content + "\n\n" + m.group(3),
+                r"(\\section\{Experiences description\})(.*?)(\}\s*\\makebody)",
+                lambda m: m.group(1) + "\n" + experiences_content + "\n" + m.group(3),
                 updated_cv,
                 flags=re.DOTALL,
             )
@@ -282,17 +421,6 @@ class LaTeXWriter:
             general_skills_content = LaTeXWriter._clean_content(
                 adaptations["general_skills"]
             )
-
-            # Validate braces
-            is_valid, error = LaTeXWriter._validate_braces(
-                general_skills_content, "general_skills"
-            )
-            if not is_valid:
-                print(f"⚠️  Warning: {error}", file=sys.stderr)
-                print(
-                    f"Content preview: {general_skills_content[:100]}...",
-                    file=sys.stderr,
-                )
 
             updated_cv = re.sub(
                 r"(\\section\{General Skills\})(.*?)(\\section\{Wheel Chart\})",
@@ -306,7 +434,7 @@ class LaTeXWriter:
             )
 
         # Validate the final adapted CV by actually compiling it
-        print("🔍 Compiling LaTeX to validate structure...", file=sys.stderr)
+        print("🔨 Compiling LaTeX to validate structure...", file=sys.stderr)
         is_valid, error = LaTeXWriter._compile_latex(updated_cv)
         if not is_valid:
             print("❌ LaTeX compilation failed", file=sys.stderr)
